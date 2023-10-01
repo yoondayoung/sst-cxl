@@ -33,6 +33,7 @@ using namespace SST::MemHierarchy;
  ***********************************************************************************************************/
 
 bool Incoherent::handleGetS(MemEvent * event, bool inMSHR) {
+    // printf("incoherent.cc is used(gets)\n");
     Addr addr = event->getBaseAddr();
     PrivateCacheLine * line = cacheArray_->lookup(addr, true);
     bool localPrefetch = event->isPrefetch() && (event->getRqstr() == cachename_);

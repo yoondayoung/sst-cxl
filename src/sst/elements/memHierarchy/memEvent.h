@@ -273,6 +273,7 @@ public:
         str << " VA: 0x" << vAddr_ << " IP: 0x" << instPtr_;
         str << std::dec << " Size: " << size_;
         str << " Prf: " << (prefetch_ ? "T" : "F");
+        str << " info for WEIGHT ALLOC: " << isWeight_; 
         return MemEventBase::getVerboseString(level) + str.str();
     }
 
@@ -309,7 +310,7 @@ private:
     bool            isEvict_;           // Whether an event is an eviction
     Addr	    instPtr_;           // Instruction pointer associated with the request
     Addr 	    vAddr_;             // Virtual address associated with the request
-
+    
     MemEvent() : MemEventBase() {} // For serialization only
 
 public:

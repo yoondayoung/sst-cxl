@@ -65,7 +65,7 @@ ProsperoComponent::ProsperoComponent(ComponentId_t id, Params& params) :
 	maxOutstanding = (uint32_t) params.find<uint32_t>("max_outstanding", 16);
 	output->verbose(CALL_INFO, 1, 0, "Configured maximum outstanding transactions for %" PRIu32 "\n", maxOutstanding);
 
-	maxIssuePerCycle = (uint32_t) params.find<uint32_t>("max_issue_per_cycle", 2);
+	maxIssuePerCycle = (uint32_t) params.find<uint32_t>("max_issue_per_cycle", 1);
 	output->verbose(CALL_INFO, 1, 0, "Configured maximum transaction issue per cycle %" PRIu32 "\n", maxIssuePerCycle);
 
 	// tell the simulator not to end without us
@@ -264,14 +264,18 @@ void ProsperoComponent::issueRequest(const ProsperoTraceEntry* entry) {
 
     const uint64_t lineOffset   = entryAddress % cacheLineSize;
     bool  isRead                = entry->isRead();
+	bool  isWrite 				= entry->isWrite();
+	bool  isRead_W            = entry->isRead_W();
+	bool  isWrite_W 			= entry->isWrite_W();
 
-	if(isRead) {
+	if(isRead || isRead_W) {
 		totalBytesRead += entryLength;
 	} else {
 		totalBytesWritten += entryLength;
 	}
 
 	if(lineOffset + entryLength > cacheLineSize) {
+		printf("split!!\n");
 		// Perform a split cache line load
 		const uint64_t lowerLength = cacheLineSize - lineOffset;
 		const uint64_t upperLength = entryLength - lowerLength;
@@ -284,43 +288,60 @@ void ProsperoComponent::issueRequest(const ProsperoTraceEntry* entry) {
 
 		// Start split requests at the original requested address and then
 		// also the the next cache line along
-		const uint64_t lowerAddress = memMgr->translate(entryAddress);
-		const uint64_t upperAddress = memMgr->translate((lowerAddress - (lowerAddress % cacheLineSize)) + cacheLineSize);
-                const uint64_t upperVirtualAddress = entryAddress - (entryAddress % cacheLineSize) + cacheLineSize;
-
-                if (isRead) {
-                    StandardMem::Read* readLower = new StandardMem::Read(lowerAddress, lowerLength, 0 /* flags */, entryAddress /* virtual address */,
-                            0 /* instPtr */, 0 /* threadID */);
-                    StandardMem::Read* readUpper = new StandardMem::Read(upperAddress, upperLength, 0 /* flags */, upperVirtualAddress,
-                            0 /* instPtr */, 0 /* threadID */);
-                    cache_link->send(readLower);
-                    cache_link->send(readUpper);
-                    readsIssued += 2;
-                    splitReadsIssued++;
-                } else {
-                    std::vector<uint8_t> payload(lowerLength, 0);
-                    StandardMem::Write* writeLower = new StandardMem::Write(lowerAddress, lowerLength, payload, false /* posted */,
-                            0 /* flags */, entryAddress /* virtual address */, 0 /* instPtr */, 0 /* threadID */);
-                    payload.resize(upperLength, 0);
-                    StandardMem::Write* writeUpper = new StandardMem::Write(upperAddress, upperLength, payload, false /* posted */,
-                            0 /* flags */, upperVirtualAddress /* virtual address */, 0 /* instPtr */, 0 /* threadID */);
-                    cache_link->send(writeLower);
-                    cache_link->send(writeUpper);
-                    writesIssued += 2;
-                    splitWritesIssued++;
-                }
+		bool isWeight = false;
+		if (isWrite_W||isRead_W) isWeight = true;
+		const uint64_t lowerAddress = memMgr->translate(entryAddress, isWeight);
+		const uint64_t upperAddress = memMgr->translate((lowerAddress - (lowerAddress % cacheLineSize)) + cacheLineSize, isWeight);
+        const uint64_t upperVirtualAddress = entryAddress - (entryAddress % cacheLineSize) + cacheLineSize;
+		if (isRead||isRead_W) {
+			StandardMem::Read* readLower = new StandardMem::Read(lowerAddress, lowerLength, 0 /* flags */, entryAddress /* virtual address */,
+					0 /* instPtr */, 0 /* threadID */);
+			StandardMem::Read* readUpper = new StandardMem::Read(upperAddress, upperLength, 0 /* flags */, upperVirtualAddress,
+					0 /* instPtr */, 0 /* threadID */);
+			cache_link->send(readLower);
+			cache_link->send(readUpper);
+			readsIssued += 2;
+			splitReadsIssued++;
+		} else {
+			std::vector<uint8_t> payload(lowerLength, 0);
+			StandardMem::Write* writeLower = new StandardMem::Write(lowerAddress, lowerLength, payload, false /* posted */,
+					0 /* flags */, entryAddress /* virtual address */, 0 /* instPtr */, 0 /* threadID */);
+			payload.resize(upperLength, 0);
+			StandardMem::Write* writeUpper = new StandardMem::Write(upperAddress, upperLength, payload, false /* posted */,
+					0 /* flags */, upperVirtualAddress /* virtual address */, 0 /* instPtr */, 0 /* threadID */);
+			cache_link->send(writeLower);
+			cache_link->send(writeUpper);
+			writesIssued += 2;
+			splitWritesIssued++;
+		}
 
 		currentOutstanding++;
 		currentOutstanding++;
 	} else {
 		// Perform a single load
                 StandardMem::Request* request;
+				uint64_t paddr;
                 if (isRead) {
-                    request = new StandardMem::Read(memMgr->translate(entryAddress), entryLength, 0, entryAddress, 0, 0);
+					paddr = memMgr->translate(entryAddress, false);
+                    request = new StandardMem::Read(paddr, entryLength, 0, entryAddress, entry->getIP(), 0);
+					// std::cout << "read addr:" << std::hex << entryAddress << " phy addr:" << paddr << std::endl;
 		    readsIssued++;
-                } else {
+                } else if(isWrite) {
                     std::vector<uint8_t> payload(entryLength, 0);
-                    request = new StandardMem::Write(memMgr->translate(entryAddress), entryLength, payload, false, 0, entryAddress, 0, 0);
+					paddr = memMgr->translate(entryAddress, false);
+                    request = new StandardMem::Write(paddr, entryLength, payload, false, 0, entryAddress, entry->getIP(), 0);
+					// std::cout << "write addr:" << std::hex << entryAddress << " phy addr:" << paddr << std::endl;
+		    writesIssued++;
+                } else if (isRead_W) {
+					paddr = memMgr->translate(entryAddress, true);
+                    request = new StandardMem::Read(paddr, entryLength, 0, entryAddress, entry->getIP(), 0);
+					// std::cout << "read w addr:" << std::hex << entryAddress << " phy addr:" << paddr << std::endl;
+		    readsIssued++;
+                } else if(isWrite_W) {
+                    std::vector<uint8_t> payload(entryLength, 0);
+					paddr = memMgr->translate(entryAddress, true);
+                    request = new StandardMem::Write(paddr, entryLength, payload, false, 0, entryAddress, entry->getIP(), 0);
+					// std::cout << "write w addr:" << std::hex << entryAddress << " phy addr:" << paddr << std::endl;
 		    writesIssued++;
                 }
                 cache_link->send(request);

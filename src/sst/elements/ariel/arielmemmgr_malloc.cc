@@ -40,17 +40,16 @@ ArielMemoryManagerMalloc::ArielMemoryManagerMalloc(ComponentId_t id, Params& par
     }
 
     // Initialize data structures
-    size_t level_buffer_size = sizeof(char) * 256;
-    char * level_buffer = (char*) malloc(level_buffer_size);
+    char * level_buffer = (char*) malloc(sizeof(char) * 256);
     uint64_t nextMemoryAddress = 0;
     for (uint32_t i = 0; i < memoryLevels; ++i) {
         // Page size
-        snprintf(level_buffer, level_buffer_size, "pagesize%" PRIu32, i);
+        sprintf(level_buffer, "pagesize%" PRIu32, i);
         pageSizes[i] = (uint64_t) params.find<uint64_t>(level_buffer, 4096);
         output->verbose(CALL_INFO, 2, 0, "Level %" PRIu32 " page size is %" PRIu64 "\n", i, pageSizes[i]);
 
         // Page count
-        snprintf(level_buffer, level_buffer_size, "pagecount%" PRIu32, i);
+        sprintf(level_buffer, "pagecount%" PRIu32, i);
         uint64_t pageCount = (uint64_t) params.find<uint64_t>(level_buffer, 131072);
         output->verbose(CALL_INFO, 2, 0, "Level %" PRIu32 " page count is %" PRIu64 "\n", i, pageCount);
 
@@ -67,7 +66,7 @@ ArielMemoryManagerMalloc::ArielMemoryManagerMalloc(ComponentId_t id, Params& par
         output->verbose(CALL_INFO, 2, 0, "Level %" PRIu32 " usable (free) page queue contains %" PRIu32 " entries\n", i, (uint32_t) freePages[i]->size());
 
         // Populate page table if needed
-        snprintf(level_buffer, level_buffer_size, "page_populate_%" PRIu32, i);
+        sprintf(level_buffer, "page_populate_%" PRIu32, i);
         std::string popFilePath = params.find<std::string>(level_buffer, "");
         if (popFilePath != "") {
             output->verbose(CALL_INFO, 1, 0, "Populating page tables for level %" PRIu32 " from %s...\n", i, popFilePath.c_str());
@@ -75,7 +74,7 @@ ArielMemoryManagerMalloc::ArielMemoryManagerMalloc(ComponentId_t id, Params& par
         }
 
         /* Register statistics per pool */
-        snprintf(level_buffer, level_buffer_size, "mempool_%" PRIu32, i);
+        sprintf(level_buffer, "mempool_%" PRIu32, i);
         statBytesAlloc.push_back(registerStatistic<uint64_t>("bytes_allocated_in_pool", level_buffer));
         statBytesFree.push_back(registerStatistic<uint64_t>("bytes_freed_from_pool", level_buffer));
         statDemandAllocs.push_back(registerStatistic<uint64_t>("demand_page_allocs", level_buffer));
@@ -175,6 +174,7 @@ void ArielMemoryManagerMalloc::allocate(const uint64_t size, const uint32_t leve
  */
 bool ArielMemoryManagerMalloc::allocateMalloc(const uint64_t size, const uint32_t level, const uint64_t virtualAddress, const uint64_t instructionPointer, const uint32_t thread) {
     output->verbose(CALL_INFO, 4, 0, "Allocate malloc received. VA: %" PRIu64 ". Size: %" PRIu64 ". Level: %" PRIu32 ".\n", virtualAddress, size, level);
+    printf("Allocate malloc received. VA: %" PRIu64 ". Size: %" PRIu64 ". Level: %" PRIu32 ".\n", virtualAddress, size, level);
 
     // Check whether a malloc mapping already exists (i.e., we missed a free)
     std::map<uint64_t, uint64_t>::iterator it = mallocTranslations.upper_bound(virtualAddress);

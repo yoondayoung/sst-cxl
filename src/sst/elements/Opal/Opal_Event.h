@@ -66,11 +66,15 @@ namespace SST{ namespace OpalComponent{
 			int fileId;
 			int memContrlId;
 			bool invalidate;
+			// for weight Allocation
+			bool isWeightFlag;
 
 		public:
 
 			OpalEvent(EventType y) : SST::Event()
-		{ ev = y; memType = SST::OpalComponent::MemType::LOCAL; invalidate = false;}
+		{ ev = y; memType = SST::OpalComponent::MemType::LOCAL; invalidate = false;
+			// printf("this creater is used!: %d\n", y);
+		}
 
 			OpalEvent(EventType y, const uint32_t level, const uint64_t virtualAddress, const uint64_t size_, const uint32_t thread) : SST::Event()
 			{
@@ -82,6 +86,10 @@ namespace SST{ namespace OpalComponent{
 				address = virtualAddress;
 				coreId = thread;
 			}
+			
+			// for weight Allocation
+			void setWeightFlag(bool wf) { isWeightFlag = wf;}
+			bool getWeightFlag() { return isWeightFlag; }
 
 			void setType(int ev1) { ev = static_cast<EventType>(ev1);}
 			int getType() { return ev; }

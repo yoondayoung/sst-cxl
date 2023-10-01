@@ -243,7 +243,7 @@ bool Cache::processEvent(MemEventBase* ev, bool inMSHR) {
     MemEvent * event = static_cast<MemEvent*>(ev);
 
     Addr addr = event->getBaseAddr();
-
+    // std::cout << "check addr: " << event->getAddr() << std::endl;
     /* Arbitrate cache access - bank/link. Reject request on failure */
     if (!arbitrateAccess(addr)) { // Disallow multiple requests to same line and/or bank in a single cycle
         if (is_debug_addr(addr)) {

@@ -63,7 +63,7 @@ void PageFaultHandler::handleEvent(SST::Event *event) {
         default:
             output->fatal(CALL_INFO, -4, "Opal event interrupt to core: %" PRIu32 " was not valid.\n", ev->getCoreId());
     }
-
+    pkt.weightAllocFlag = ev->getWeightFlag();
     pkt.vAddress = ev->getAddress();
     pkt.pAddress = ev->getPaddress();
     pkt.size = 4096;
@@ -72,11 +72,14 @@ void PageFaultHandler::handleEvent(SST::Event *event) {
     delete ev;
 }
 
-void PageFaultHandler::allocatePage(const uint32_t thread, const uint32_t level, const uint64_t virtualAddress, const uint64_t size) {
+// to do: 여기서 OpalEvent에 weightFlag를 전달하자
+void PageFaultHandler::allocatePage(const uint32_t thread, const uint32_t level, const uint64_t virtualAddress, const uint64_t size, bool weightFlag) {
     OpalEvent * tse = new OpalEvent(OpalComponent::EventType::REQUEST);
     tse->setResp(virtualAddress, 0, size);
     tse->setFaultLevel(level);
-    opalLink[thread]->send(tse);
-
+    tse->setWeightFlag(weightFlag);
+    // for weight allocation
+    opalLink[thread]->send(tse); 
+    // printf("[pagefault handler] vaddr: %lx, size: %ld\n", virtualAddress, size);
 }
 

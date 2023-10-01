@@ -30,28 +30,63 @@ ProsperoMemoryManager::~ProsperoMemoryManager() {
 
 }
 
-uint64_t ProsperoMemoryManager::translate(const uint64_t virtAddr) {
-	const uint64_t pageOffset = virtAddr % pageSize;
-	const uint64_t virtPageStart = virtAddr - pageOffset;
-	uint64_t resolvedPhysPageStart = 0;
+// custom translate function for 'resnet_trace_200mb.trace' file
+uint64_t ProsperoMemoryManager::translate(const uint64_t virtAddr, bool isWeight) {
+	// const uint64_t pageOffset = virtAddr % pageSize;
+	// const uint64_t virtPageStart = virtAddr - pageOffset;
+	// uint64_t resolvedPhysPageStart = 0;
 
-	output->verbose(CALL_INFO, 2, 0, "Translating virtual address %" PRIu64 ", page offset=%" PRIu64 ", start virt=%" PRIu64 "\n",
-		virtAddr, pageOffset, virtPageStart);
+	// output->verbose(CALL_INFO, 2, 0, "Translating virtual address %" PRIu64 ", page offset=%" PRIu64 ", start virt=%" PRIu64 "\n",
+	// 	virtAddr, pageOffset, virtPageStart);
 
-	std::map<uint64_t, uint64_t>::iterator findEntry = pageTable.find(virtPageStart);
-	if(findEntry == pageTable.end()) {
-		output->verbose(CALL_INFO, 2, 0, "Translation requires new page, creating at physical: %" PRIu64 "\n", nextPageStart);
+	// std::map<uint64_t, uint64_t>::iterator findEntry = pageTable.find(virtPageStart);
+	// if(findEntry == pageTable.end()) {
+	// 	output->verbose(CALL_INFO, 2, 0, "Translation requires new page, creating at physical: %" PRIu64 "\n", nextPageStart);
 
-		resolvedPhysPageStart = nextPageStart;
-		pageTable.insert( std::pair<uint64_t, uint64_t>(virtPageStart, nextPageStart) );
-		nextPageStart += pageSize;
-	} else {
-		resolvedPhysPageStart = findEntry->second;
-	}
+	// 	resolvedPhysPageStart = nextPageStart;
+	// 	pageTable.insert( std::pair<uint64_t, uint64_t>(virtPageStart, nextPageStart) );
+	// 	nextPageStart += pageSize;
+	// } else {
+	// 	resolvedPhysPageStart = findEntry->second;
+	// }
 
-	output->verbose(CALL_INFO, 2, 0, "Translated physical page to %" PRIu64 " + offset %" PRIu64 " = final physical %" PRIu64 "\n",
-		resolvedPhysPageStart, pageOffset, (resolvedPhysPageStart + pageOffset));
+	// output->verbose(CALL_INFO, 2, 0, "Translated physical page to %" PRIu64 " + offset %" PRIu64 " = final physical %" PRIu64 "\n",
+	// 	resolvedPhysPageStart, pageOffset, (resolvedPhysPageStart + pageOffset));
 
-	// Reapply the offset to the physical page we just located and we are finished
-	return resolvedPhysPageStart + pageOffset;
+	// // Reapply the offset to the physical page we just located and we are finished
+	// return resolvedPhysPageStart + pageOffset;
+
+
+	// segment 값 아래 32bit로 매핑해도 됨 (안 겹쳐서)
+	uint64_t upper_addr = virtAddr >> 32;
+	upper_addr = upper_addr << 32;
+	if (isWeight) return (virtAddr - upper_addr)+(uint64_t)(8192*(uint64_t)(1024*1024));
+	else return virtAddr - upper_addr;
 }
+
+
+// uint64_t ProsperoMemoryManager::translate(const uint64_t virtAddr) {
+// 	const uint64_t pageOffset = virtAddr % pageSize;
+// 	const uint64_t virtPageStart = virtAddr - pageOffset;
+// 	uint64_t resolvedPhysPageStart = 0;
+
+// 	output->verbose(CALL_INFO, 2, 0, "Translating virtual address %" PRIu64 ", page offset=%" PRIu64 ", start virt=%" PRIu64 "\n",
+// 		virtAddr, pageOffset, virtPageStart);
+
+// 	std::map<uint64_t, uint64_t>::iterator findEntry = pageTable.find(virtPageStart);
+// 	if(findEntry == pageTable.end()) {
+// 		output->verbose(CALL_INFO, 2, 0, "Translation requires new page, creating at physical: %" PRIu64 "\n", nextPageStart);
+
+// 		resolvedPhysPageStart = nextPageStart;
+// 		pageTable.insert( std::pair<uint64_t, uint64_t>(virtPageStart, nextPageStart) );
+// 		nextPageStart += pageSize;
+// 	} else {
+// 		resolvedPhysPageStart = findEntry->second;
+// 	}
+
+// 	output->verbose(CALL_INFO, 2, 0, "Translated physical page to %" PRIu64 " + offset %" PRIu64 " = final physical %" PRIu64 "\n",
+// 		resolvedPhysPageStart, pageOffset, (resolvedPhysPageStart + pageOffset));
+
+// 	// Reapply the offset to the physical page we just located and we are finished
+// 	return resolvedPhysPageStart + pageOffset;
+// }

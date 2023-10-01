@@ -35,6 +35,9 @@ void ariel_enable();
 /* Execute a fence */
 void ariel_fence();
 
+// notify before weight alloc
+void weight_pre_malloc();
+
 /* Return the number of simulated cycles since simulation begin */
 uint64_t ariel_cycles();
 

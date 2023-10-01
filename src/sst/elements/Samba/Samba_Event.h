@@ -46,13 +46,17 @@ namespace SST{ namespace SambaComponent{
 			uint64_t address;
 			uint64_t paddress;
 			uint64_t size;
+			bool isWeightAllocFlag;
 		public:
 
 			SambaEvent(EventType y) : SST::Event()
-		{ ev = y;}
+		{ ev = y; }
 
 			void setType(int ev1) { ev = static_cast<EventType>(ev1);}
 			int getType() { return ev; }
+
+			void setWeightAllocFlag(bool wf) { isWeightAllocFlag = wf;}
+			int getWeightAllocFlag() { return isWeightAllocFlag; }
 
 			void setResp(uint64_t add, uint64_t padd, uint64_t sz) { address = add; paddress = padd; size = sz;}
 			uint64_t getAddress() { return address; }

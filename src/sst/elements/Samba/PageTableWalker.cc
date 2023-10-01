@@ -101,7 +101,7 @@ PageTableWalker::PageTableWalker(ComponentId_t id, int tlb_id, PageTableWalker *
     os_page_size = ((uint32_t) params.find<uint32_t>("os_page_size", 4));
 
 	char* subID = (char*) malloc(sizeof(char) * 32);
-	snprintf(subID, sizeof(char)*32, "Core%d_PTWC", tlb_id);
+	sprintf(subID, "Core%d_PTWC", tlb_id);
 
 
 
@@ -172,8 +172,6 @@ PageTableWalker::PageTableWalker(ComponentId_t id, int tlb_id, PageTableWalker *
 // Handling internal events that are sent by the Page Table Walker
 void PageTableWalker::handleEvent( SST::Event* e )
 {
-
-
 	// For each page fault,
 	// 1 -- check if CR3 for VA exist, if not
 	// Send request to page fault handler and save state of current fault at 3
@@ -186,6 +184,8 @@ void PageTableWalker::handleEvent( SST::Event* e )
 
 	//// ******** Important, for each level, we will update MAPPED_PAGE_SIZE** and PGD/PMD/PUD/PTE so the actual physical address is used later
 	SambaEvent * temp_ptr =  dynamic_cast<SambaComponent::SambaEvent*> (e);
+	// for weight allocation
+	bool Wflag = temp_ptr->getWeightAllocFlag();
 
 	if(temp_ptr==nullptr)
 		std::cout<<" Error in Casting to SambaEvent "<<std::endl;
@@ -224,9 +224,9 @@ void PageTableWalker::handleEvent( SST::Event* e )
 
 		if(!(*cr3_init)) {
 			*cr3_init = 1;
-			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr,4096);
+			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr,4096,Wflag);
 		}else
-			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096);
+			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096,Wflag);
 
 	}
 	else if(temp_ptr->getType() == EventType::PAGE_FAULT_RESPONSE)
@@ -245,7 +245,7 @@ void PageTableWalker::handleEvent( SST::Event* e )
 			*cr3_init = 1;
 			(*CR3) = temp_ptr->getPaddress();
 			fault_level--;
-			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096);
+			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096,Wflag);
 		}
 		else if(fault_level == 3)
 		{
@@ -259,7 +259,7 @@ void PageTableWalker::handleEvent( SST::Event* e )
 				(*PENDING_PAGE_FAULTS_PGD).erase((stall_addr/page_size[3])%(512));
 			}
 			fault_level--;
-			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096);
+			pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096,Wflag);
 
 		}
 		else if(fault_level == 2)
@@ -281,7 +281,7 @@ void PageTableWalker::handleEvent( SST::Event* e )
 
 			//} else {
 				fault_level--;
-				pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096);
+				pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096,Wflag);
 
 			//}
 
@@ -307,7 +307,7 @@ void PageTableWalker::handleEvent( SST::Event* e )
 
 			//} else {
 				fault_level--;
-				pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096);
+				pageFaultHandler->allocatePage(coreId,fault_level,stall_addr/page_size[fault_level],4096,Wflag);
 
 			//}
 
@@ -324,6 +324,7 @@ void PageTableWalker::handleEvent( SST::Event* e )
 				(*PTE)[(stall_addr/page_size[0])%offset] = temp_ptr->getPaddress();
 			}
 			SambaEvent * tse = new SambaEvent(EventType::PAGE_FAULT_SERVED);
+			// printf("is this before handleEvent called??3\n");
 			s_EventChan->send(tse);
 		}
 
@@ -358,6 +359,8 @@ bool PageTableWalker::recvPageFaultResp(PageFaultHandler::PageFaultHandlerPacket
 	{
 		SambaEvent * tse = new SambaEvent(EventType::PAGE_FAULT_RESPONSE);
 		tse->setResp(pkt.vAddress, pkt.pAddress,pkt.size);
+		tse->setWeightAllocFlag(pkt.weightAllocFlag);
+		// printf("is this before handleEvent called??4\n");
 		s_EventChan->send(10, tse);
 	}
 	break;
@@ -565,8 +568,11 @@ bool PageTableWalker::tick(SST::Cycle_t x)
 					if((*PENDING_PAGE_FAULTS).find(addr/page_size[0])==(*PENDING_PAGE_FAULTS).end()) {
 						(*PENDING_PAGE_FAULTS)[addr/page_size[0]] = 0;
 						SambaEvent * tse = new SambaEvent(EventType::PAGE_FAULT);
+						if (ev->getWeightFlag()) tse->setWeightAllocFlag(true);
+						else tse->setWeightAllocFlag(false);
 						//std::cout<< getName().c_str() << " Core id: " << coreId << " Fault at address "<<addr<<std::endl;
 						tse->setResp(addr,0,4096);
+						// printf("is this before handleEvent called??5\n");
 						s_EventChan->send(10, tse);
 
 					}

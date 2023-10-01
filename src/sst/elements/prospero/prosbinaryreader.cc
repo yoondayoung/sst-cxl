@@ -72,7 +72,7 @@ ProsperoTraceEntry* ProsperoBinaryTraceReader::readNextEntry() {
 
 		return new ProsperoTraceEntry(reqCycles, reqAddress,
 			reqLength,
-			(reqType == 'R' || reqType == 'r') ? READ : WRITE);
+			(reqType == 'R' || reqType == 'r') ? READ : WRITE, NULL);
 	} else {
 		// Did not get a full read?
 		return NULL;

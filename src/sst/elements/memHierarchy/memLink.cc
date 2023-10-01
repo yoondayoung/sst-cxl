@@ -177,6 +177,8 @@ std::set<MemLinkBase::EndpointInfo>* MemLink::getDests() {
  * send event on link
  */
 void MemLink::send(MemEventBase *ev) {
+    // to do: 여기서 MemEventBase -> Event로 바뀜
+    // printf("*add weightFlag to MemEventBase:%d\n", ev->getWeightFlag());
     link->send(ev);
 }
 

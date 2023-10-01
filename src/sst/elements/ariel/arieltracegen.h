@@ -24,7 +24,9 @@ namespace ArielComponent {
 
 typedef enum {
     READ,
-    WRITE
+    WRITE,
+    WEIGHT_WRITE,
+    WEIGHT_READ,
 } ArielTraceEntryOperation;
 
 class ArielTraceGenerator : public Module {
@@ -38,7 +40,7 @@ class ArielTraceGenerator : public Module {
         virtual void publishEntry(const uint64_t picoS,
                 const uint64_t physAddr,
                 const uint32_t reqLength,
-                const ArielTraceEntryOperation op) = 0;
+                const ArielTraceEntryOperation op, const uint64_t instPtr) = 0;
         virtual void setCoreID(uint32_t coreID) = 0;
 
 };

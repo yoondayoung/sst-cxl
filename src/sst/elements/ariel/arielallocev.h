@@ -27,11 +27,12 @@ namespace ArielComponent {
 class ArielAllocateEvent : public ArielEvent {
 
     public:
-        ArielAllocateEvent(uint64_t vAddr, uint64_t len, uint32_t lev, uint64_t ip) :
+        ArielAllocateEvent(uint64_t vAddr, uint64_t len, uint32_t lev, uint64_t ip, bool walloc) :
                 virtualAddress(vAddr),
                 allocateLength(len),
                 level(lev),
-                instPtr(ip) {
+                instPtr(ip),
+                weightAlloc(walloc) { // for cxl weight alloc
 
         }
 
@@ -41,12 +42,14 @@ class ArielAllocateEvent : public ArielEvent {
         uint64_t getAllocationLength() const { return allocateLength; }
         uint32_t getAllocationLevel() const { return level; }
         uint64_t getInstructionPointer() const { return instPtr; }
+        bool getIsWeightAllocation() const { return weightAlloc; } // for cxl weight alloc
 
     protected:
         uint64_t virtualAddress;
         uint64_t allocateLength;
         uint32_t level;
         uint64_t instPtr;
+        bool weightAlloc; // for cxl weight alloc
 
 };
 

@@ -2,6 +2,7 @@ import sst
 
 # Define SST core options
 sst.setProgramOption("timebase", "1ps")
+sst.setProgramOption("stopAtCycle", "0 ns")
 
 
 memory_mb = 1024 #1GB

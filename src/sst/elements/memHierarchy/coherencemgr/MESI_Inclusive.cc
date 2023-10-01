@@ -35,6 +35,7 @@ using namespace SST::MemHierarchy;
  ***********************************************************************************************************/
 
 bool MESIInclusive::handleGetS(MemEvent * event, bool inMSHR) {
+    // printf("MESI_Inclusive.cc is used(handleGetS)\n");
     Addr addr = event->getBaseAddr();
     SharedCacheLine * line = cacheArray_->lookup(addr, true);
     bool localPrefetch = event->isPrefetch() && (event->getRqstr() == cachename_);
@@ -61,9 +62,20 @@ bool MESIInclusive::handleGetS(MemEvent * event, bool inMSHR) {
                     stat_eventState[(int)Command::GetS][I]->addData(1);
                     stat_miss[0][inMSHR]->addData(1);
                     stat_misses->addData(1);
+                    if (cachename_=="l3cache"){
+                        if (line->getPrefetch()) std::cout << std::hex << "1. [Prefetch] miss addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
+                        else std::cout << std::hex << "1. miss addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
+                    }
+                        
+                    //     printf("l3 miss: %lx\n", addr);
+                    
+                    // printf("1. %s miss: %lx\n", cachename_, addr);
                     notifyListenerOfAccess(event, NotifyAccessType::READ, NotifyResultType::MISS);
                     recordLatencyType(event->getID(), LatType::MISS);
                     mshr_->setProfiled(addr);
+                }
+                else{
+                    stat_misses->addData(1);
                 }
                 sendTime = forwardMessage(event, event->getSize(), 0, nullptr);
                 line->setState(IS);
@@ -81,6 +93,7 @@ bool MESIInclusive::handleGetS(MemEvent * event, bool inMSHR) {
                 stat_hits->addData(1);
                 notifyListenerOfAccess(event, NotifyAccessType::READ, NotifyResultType::HIT);
                 if (localPrefetch) {
+                    std::cout << std::hex << "Prefetch redundant addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
                     statPrefetchRedundant->addData(1);
                     recordPrefetchLatency(event->getID(), LatType::HIT);
                 } else {
@@ -116,8 +129,10 @@ bool MESIInclusive::handleGetS(MemEvent * event, bool inMSHR) {
                 if (!inMSHR || !mshr_->getProfiled(addr)) {
                     stat_eventState[(int)Command::GetS][state]->addData(1);
                     stat_hit[0][inMSHR]->addData(1);
-                    stat_hits->addData(1);
+                    // stat_hits->addData(1);
                     notifyListenerOfAccess(event, NotifyAccessType::PREFETCH, NotifyResultType::HIT);
+                    std::cout << std::hex << "Prefetch redundant addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
+
                     statPrefetchRedundant->addData(1);
                     recordPrefetchLatency(event->getID(), LatType::HIT);
                 }
@@ -187,8 +202,11 @@ bool MESIInclusive::handleGetS(MemEvent * event, bool inMSHR) {
     if (status == MemEventStatus::Reject) {
         if (!localPrefetch)
             sendNACK(event);
-        else
+        else{
+            std::cout << std::hex << event->getAddr() << ": drop because Reject!!" << std::endl;
             return false;
+        }
+            
     }
 
     return true;
@@ -219,9 +237,14 @@ bool MESIInclusive::handleGetX(MemEvent * event, bool inMSHR) {
                     recordLatencyType(event->getID(), LatType::MISS);
                     stat_eventState[(int)event->getCmd()][I]->addData(1);
                     stat_miss[(event->getCmd() == Command::GetX ? 1 : 2)][inMSHR]->addData(1);
+                    if (cachename_=="l3cache")
+                        std::cout << std::hex << "2. miss addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
                     stat_misses->addData(1);
                     notifyListenerOfAccess(event, NotifyAccessType::WRITE, NotifyResultType::MISS);
                     mshr_->setProfiled(addr);
+                }
+                else{
+                    stat_misses->addData(1);
                 }
                 sendTime = forwardMessage(event, lineSize_, 0, nullptr);
                 line->setState(IM);
@@ -238,9 +261,14 @@ bool MESIInclusive::handleGetX(MemEvent * event, bool inMSHR) {
                     if (!mshr_->getProfiled(addr)) {
                         stat_eventState[(int)event->getCmd()][state]->addData(1);
                         stat_miss[(event->getCmd() == Command::GetX ? 1 : 2)][inMSHR]->addData(1);
+                        if (cachename_=="l3cache")
+                           std::cout << std::hex << "3. miss addr: " << event->getAddr() <<" ip: " << event->getInstructionPointer() << std::endl;
                         stat_misses->addData(1);
                         notifyListenerOfAccess(event, NotifyAccessType::WRITE, NotifyResultType::MISS);
                         mshr_->setProfiled(addr);
+                    }
+                    else{
+                        stat_misses->addData(1);
                     }
                     recordPrefetchResult(line, statPrefetchUpgradeMiss);
                     recordLatencyType(event->getID(), LatType::UPGRADE);
@@ -2265,6 +2293,7 @@ void MESIInclusive::forwardByDestination(MemEventBase* ev, Cycle_t timestamp) {
 void MESIInclusive::recordPrefetchResult(SharedCacheLine * line, Statistic<uint64_t> * stat) {
     if (line->getPrefetch()) {
         stat->addData(1);
+        //if(stat==statPrefetchHit) stat_misses->addData(-1);
         line->setPrefetch(false);
     }
 }

@@ -37,7 +37,7 @@ TLBhierarchy::TLBhierarchy(ComponentId_t id, int tlb_id) : ComponentExtension(id
 	coreID=tlb_id;
 
 	char* subID = (char*) malloc(sizeof(char) * 32);
-	snprintf(subID, sizeof(char)*32, "%" PRIu32, coreID);
+	sprintf(subID, "%" PRIu32, coreID);
 
 }
 
@@ -101,7 +101,7 @@ TLBhierarchy::TLBhierarchy(ComponentId_t id, int tlb_id, int Levels, Params& par
 	ptw_confined  = ((uint32_t) params.find<uint32_t>("ptw_confined", 0));
 
 	char* subID = (char*) malloc(sizeof(char) * 32);
-	snprintf(subID, sizeof(char)*32, "%" PRIu32, coreID);
+	sprintf(subID, "%" PRIu32, coreID);
 
 	PTW = loadComponentExtension<PageTableWalker>(coreID, nullptr, 0, params);
 
@@ -177,9 +177,12 @@ void TLBhierarchy::handleEvent_CACHE( SST::Event * ev )
 
 void TLBhierarchy::handleEvent_CPU(SST::Event* event)
 {
+	SST::MemHierarchy::MemEventBase *ev2 =  static_cast<SST::MemHierarchy::MemEventBase*> (event);
+	
 	// Push the request to the L1 TLB and time-stamp it
 	time_tracker[event]= curr_time;
-        MemEventBase* mEvent = static_cast<MemEventBase*>(event);
+    MemEventBase* mEvent = static_cast<MemEventBase*>(event);
+	// printf("[TLBhierarchy.cc]: %lx\n", mEvent->getAddr());
 	TLB_CACHE[1]->push_request(mEvent);
 
 

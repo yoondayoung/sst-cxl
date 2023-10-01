@@ -19,7 +19,7 @@ ariel.addParams({
         "maxcorequeue" : "256",
         "maxissuepercycle" : "2",
         "pipetimeout" : "0",
-        "executable" : app,
+        "executable" : './stream',
         "arielmode" : "1",
         "launchparamcount" : 1,
         "launchparam0" : "-ifeellucky",

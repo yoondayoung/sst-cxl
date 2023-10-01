@@ -64,7 +64,7 @@ class ArielMemoryManager : public SubComponent {
         virtual void get_tlb_info(std::unordered_map<uint64_t, uint64_t>*, uint32_t&, bool&) { }
 
         /** Request to allocate a malloc, not supported by all memory managers */
-        virtual bool allocateMalloc(const uint64_t size, const uint32_t level, const uint64_t virtualAddress, const uint64_t instructionPointer, const uint32_t thread) {
+        virtual bool allocateMalloc(const uint64_t size, const uint32_t level, const uint64_t virtualAddress, const uint64_t instructionPointer, const uint32_t thread, bool wflag) {
             output->verbose(CALL_INFO, 4, 0, "The instantiated ArielMemoryManager does not support malloc handling.\n");
             return false;
         }

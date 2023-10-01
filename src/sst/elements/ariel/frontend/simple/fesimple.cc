@@ -1003,7 +1003,6 @@ VOID ariel_postmalloc_instrument(ADDRINT allocLocation)
         ac.mlm_map.vaddr = virtualAddress;
         ac.mlm_map.alloc_len = allocationLength;
 
-
         if (UseMallocMap.Value() != "") {
             if (toFast[thr].valid) {
                 ac.mlm_map.alloc_level = toFast[thr].level;
@@ -1023,8 +1022,7 @@ VOID ariel_postmalloc_instrument(ADDRINT allocLocation)
             tunnel->writeMessage(thr, ac);
         }
 
-        /*printf("ARIEL: Created a malloc of size: %" PRIu64 " in Ariel\n",
-         * (UINT64) allocationLength);*/
+        //printf("ARIEL: Created a malloc of size: %" PRIu64 " in Ariel\n",* (UINT64) allocationLength);
     }
 }
 

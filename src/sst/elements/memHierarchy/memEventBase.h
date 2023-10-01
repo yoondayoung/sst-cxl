@@ -61,6 +61,7 @@ public:
         cmd_            = Command::NULLCMD;
         flags_          = 0;
         memFlags_       = 0;
+        isWeight_           = false;
     }
 
     virtual MemEventBase* makeResponse() {
@@ -78,6 +79,7 @@ public:
         tid_ = event->tid_;
         flags_ = event->flags_;
         memFlags_ = event->memFlags_;
+        isWeight_ = event->isWeight_; // for cxl allocation -> is this needed?
     }
 
     virtual void copyMetadata(MemEventBase* ev) {
@@ -86,6 +88,12 @@ public:
         flags_ = ev->flags_;
         memFlags_ = ev->memFlags_;
     }
+
+    // for weight allocation
+    /** Sets the virtual address of this MemEvent */
+    void setWeightFlag(bool wFlag) { isWeight_ = wFlag; }
+    /** Gets the virtual address of this MemEvent */
+    bool getWeightFlag() const { return isWeight_; }
 
     /** @return  Unique ID of this MemEvent */
     id_type getID(void) const { return eventID_; }
@@ -218,6 +226,7 @@ protected:
     Command         cmd_;               // Command
     uint32_t        flags_;
     uint32_t        memFlags_;
+    bool           isWeight_;       // for weight allocation
 
     MemEventBase() {} // For serialization only
 
@@ -233,6 +242,7 @@ public:
         ser & cmd_;
         ser & flags_;
         ser & memFlags_;
+        ser & isWeight_;
     }
 
     ImplementSerializable(SST::MemHierarchy::MemEventBase);

@@ -102,6 +102,9 @@ typedef struct {
 } ArielFunctionRecord;
 std::map<std::string, ArielFunctionRecord*> funcProfile;
 
+// for tracking weight malloc
+bool isWeightFlag = false;
+
 // Malloc interception/MLM support
 UINT32 default_pool;
 UINT32 overridePool;
@@ -366,15 +369,19 @@ VOID WriteInstructionRead(ADDRINT* address, UINT32 readSize, THREADID thr, ADDRI
     ac.inst.size = readSize;
     ac.inst.instClass = instClass;
     ac.inst.simdElemCount = simdOpWidth;
+    ac.inst.isWeight = false; // todo: is this right??
 
     tunnel->writeMessage(thr, ac);
 }
 
+// to do: identify weight mem write
 VOID WriteInstructionWrite(ADDRINT* address, UINT32 writeSize, THREADID thr, ADDRINT ip,
             UINT32 instClass, UINT32 simdOpWidth)
 {
-
+    
+    // std::cout << "[WriteInstructionWrite] createWrite size:" << writeSize << std::endl;
     const uint64_t addr64 = (uint64_t) address;
+    // printf("[WriteInstructionWrite] write addr: %lx, createWrite size:%d\n", addr64, writeSize);
     ArielCommand ac;
 
     ac.command = ARIEL_PERFORM_WRITE;
@@ -383,6 +390,8 @@ VOID WriteInstructionWrite(ADDRINT* address, UINT32 writeSize, THREADID thr, ADD
     ac.inst.size = writeSize;
     ac.inst.instClass = instClass;
     ac.inst.simdElemCount = simdOpWidth;
+    // ac.inst.isWeight = isWeightFlag;
+    // printf("this time is Weight:%d\n", isWeightFlag);
 
     if( writeTrace ) {
 //      if( writeSize > ARIEL_MAX_PAYLOAD_SIZE ) {
@@ -400,6 +409,7 @@ VOID WriteInstructionWrite(ADDRINT* address, UINT32 writeSize, THREADID thr, ADD
     printf("\n");
 */
     tunnel->writeMessage(thr, ac);
+    // isWeightFlag = false;
 }
 
 VOID WriteStartInstructionMarker(UINT32 thr, ADDRINT ip)
@@ -464,11 +474,11 @@ VOID WriteNoOp(THREADID thr, ADDRINT ip)
 VOID WriteInstructionWriteOnly(THREADID thr, ADDRINT* writeAddr, UINT32 writeSize, ADDRINT ip,
             UINT32 instClass, UINT32 simdOpWidth, BOOL first, BOOL last)
 {
-
     if(enable_output) {
         if(thr < core_count) {
             if (first)
                 WriteStartInstructionMarker(thr, ip);
+            // std::cout << "[WriteInstructionWriteOnly]write addr: " << writeAddr << " size: " << writeSize << std::endl;
             WriteInstructionWrite(writeAddr, writeSize,  thr, ip, instClass, simdOpWidth);
             if (last)
                 WriteEndInstructionMarker(thr, ip);
@@ -496,7 +506,6 @@ VOID InstrumentInstruction(INS ins, VOID *v)
     UINT32 maxSIMDRegWidth = 1;
 
     std::string instCode = INS_Mnemonic(ins);
-
     for(UINT32 i = 0; i < INS_MaxNumRRegs(ins); i++) {
         if( REG_is_xmm(INS_RegR(ins, i)) ) {
                 maxSIMDRegWidth = ARIEL_MAX(maxSIMDRegWidth, (UINT32) 2);
@@ -547,12 +556,12 @@ VOID InstrumentInstruction(INS ins, VOID *v)
             }
         }
     }
-   
+    // std::cout << "inst: " << instCode;
     UINT32 operands = INS_MemoryOperandCount(ins);
     for (UINT32 op = 0; op < operands; op++) {
         BOOL first = (op == 0);
         BOOL last = (op == (operands - 1));
-        
+        // std::cout << INS_Address(ins) <<std::endl ; 
         if (INS_MemoryOperandIsRead(ins, op)) {
             INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)
                     WriteInstructionReadOnly,
@@ -565,6 +574,7 @@ VOID InstrumentInstruction(INS ins, VOID *v)
                     IARG_BOOL, last,
                     IARG_END);
         } else {
+            // if (isWeightFlag==true) std::cout << "inst code: " << instCode << std::endl;
             INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)
                     WriteInstructionWriteOnly,
                     IARG_THREAD_ID,
@@ -578,7 +588,8 @@ VOID InstrumentInstruction(INS ins, VOID *v)
 
         }
     }
-
+    // std::cout << std::endl;
+    // if (isWeightFlag==true) std::cout << "***" << std::endl;
     if (operands == 0) {
         INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)
                 WriteNoOp,
@@ -641,6 +652,28 @@ VOID InstrumentInstruction(INS ins, VOID *v)
         INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR) IncrementFunctionRecord,
                 IARG_PTR, (void*) funcRecord, IARG_END);
     }
+}
+
+void mapped_weight_pre_malloc(){
+     /* LOCK */
+    THREADID thr = PIN_ThreadId();
+    PIN_GetLock(&mainLock, thr);
+    // to do: weight 변수
+    isWeightFlag = true;
+    PIN_ReleaseLock(&mainLock);
+    printf("ARIEL: weight premalloc executed!\n");
+    return;
+}
+
+void mapped_weight_post_malloc(){
+     /* LOCK */
+    THREADID thr = PIN_ThreadId();
+    PIN_GetLock(&mainLock, thr);
+    // to do: weight 변수
+    isWeightFlag = false;
+    PIN_ReleaseLock(&mainLock);
+    printf("ARIEL: weight postalloc executed!\n");
+    return;
 }
 
 /* Intercept ariel_enable() in application & start simulating instructions */
@@ -945,13 +978,14 @@ void* ariel_mlm_malloc(size_t size, int level) {
     ac.command = ARIEL_ISSUE_TLM_MAP;
     ac.mlm_map.vaddr = virtualAddress;
     ac.mlm_map.alloc_len = allocationLength;
+    ac.mlm_map.isWeight = true;
 
     if(shouldOverride) {
         ac.mlm_map.alloc_level = overridePool;
     } else {
         ac.mlm_map.alloc_level = allocationLevel;
     }
-
+    // printf("ariel_mlm_malloc executed!\n");
     tunnel->writeMessage(thr, ac);
 
 #ifdef ARIEL_DEBUG
@@ -1038,6 +1072,7 @@ VOID ariel_postmalloc_instrument(ADDRINT allocLocation)
         ac.instPtr = myIndex;
         ac.mlm_map.vaddr = virtualAddress;
         ac.mlm_map.alloc_len = allocationLength;
+        ac.mlm_map.isWeight = isWeightFlag;
 
 
         if (UseMallocMap.Value() != "") {
@@ -1058,7 +1093,8 @@ VOID ariel_postmalloc_instrument(ADDRINT allocLocation)
             ac.mlm_map.alloc_level = allocationLevel;
             tunnel->writeMessage(thr, ac);
         }
-
+        // printf("ariel_postmalloc_instrument executed!\n");
+        // printf("ARIEL: Created a malloc of size: %ld in Ariel (weight flag=%d)\n", allocationLength, isWeightFlag);
         /*printf("ARIEL: Created a malloc of size: %" PRIu64 " in Ariel\n",
          * (UINT64) allocationLength);*/
     }
@@ -1662,6 +1698,17 @@ VOID InstrumentRoutine(RTN rtn, VOID* args)
             enable_output = false;
         }
         return;
+    } else if (RTN_Name(rtn) == "weight_pre_malloc" || RTN_Name(rtn) == "_weight_pre_malloc") {
+        fprintf(stderr,"Identified routine: weight_pre_malloc, replacing with Ariel equivalent...\n");
+        RTN_Replace(rtn, (AFUNPTR) mapped_weight_pre_malloc);
+        fprintf(stderr,"Replacement complete.\n");
+        return;
+    }
+    else if (RTN_Name(rtn) == "weight_post_malloc" || RTN_Name(rtn) == "_weight_pre_malloc") {
+        fprintf(stderr,"Identified routine: weight_post_malloc, replacing with Ariel equivalent...\n");
+        RTN_Replace(rtn, (AFUNPTR) mapped_weight_post_malloc);
+        fprintf(stderr,"Replacement complete.\n");
+        return;
     } else if (RTN_Name(rtn) == "gettimeofday" || RTN_Name(rtn) == "_gettimeofday") {
         fprintf(stderr,"Identified routine: gettimeofday, replacing with Ariel equivalent...\n");
         RTN_Replace(rtn, (AFUNPTR) mapped_gettimeofday);
@@ -1697,7 +1744,8 @@ VOID InstrumentRoutine(RTN rtn, VOID* args)
         AFUNPTR ret = RTN_Replace(rtn, (AFUNPTR) ariel_mlm_malloc);
         fprintf(stderr,"Replacement complete. (%p)\n", ret);
         return;
-    } else if ((InterceptMemAllocations.Value() > 0) && RTN_Name(rtn) == "mlm_free") {
+    } 
+    else if ((InterceptMemAllocations.Value() > 0) && RTN_Name(rtn) == "mlm_free") {
         fprintf(stderr,"Identified routine: mlm_free, replacing with Ariel equivalent...\n");
         RTN_Replace(rtn, (AFUNPTR) ariel_mlm_free);
         fprintf(stderr, "Replacement complete.\n");
@@ -1707,37 +1755,39 @@ VOID InstrumentRoutine(RTN rtn, VOID* args)
         RTN_Replace(rtn, (AFUNPTR) ariel_mlm_set_pool);
         fprintf(stderr, "Replacement complete.\n");
         return;
-    } else if ((InterceptMemAllocations.Value() > 0) && (
-                RTN_Name(rtn) == "malloc" || RTN_Name(rtn) == "_malloc" || RTN_Name(rtn) == "__libc_malloc" || RTN_Name(rtn) == "__libc_memalign" || RTN_Name(rtn) == "_gfortran_malloc")) {
+    }
+    // else if ((InterceptMemAllocations.Value() > 0) && (
+    //             RTN_Name(rtn) == "malloc" || RTN_Name(rtn) == "_malloc" || RTN_Name(rtn) == "__libc_malloc" || RTN_Name(rtn) == "__libc_memalign" || RTN_Name(rtn) == "_gfortran_malloc")) {
 
-        fprintf(stderr, "Identified routine: malloc/_malloc, replacing with Ariel equivalent...\n");
-        RTN_Open(rtn);
+    //     fprintf(stderr, "Identified routine: malloc/_malloc, replacing with Ariel equivalent...\n");
+    //     RTN_Open(rtn);
 
-        RTN_InsertCall(rtn, IPOINT_BEFORE,
-            (AFUNPTR) ariel_premalloc_instrument,
-                IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                IARG_INST_PTR,
-                IARG_END);
+    //     RTN_InsertCall(rtn, IPOINT_BEFORE,
+    //         (AFUNPTR) ariel_premalloc_instrument,
+    //             IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+    //             IARG_INST_PTR,
+    //             IARG_END);
 
-        RTN_InsertCall(rtn, IPOINT_AFTER,
-                       (AFUNPTR) ariel_postmalloc_instrument,
-                       IARG_FUNCRET_EXITPOINT_VALUE,
-                       IARG_END);
+    //     RTN_InsertCall(rtn, IPOINT_AFTER,
+    //                    (AFUNPTR) ariel_postmalloc_instrument,
+    //                    IARG_FUNCRET_EXITPOINT_VALUE,
+    //                    IARG_END);
 
-        RTN_Close(rtn);
-    } else if ((InterceptMemAllocations.Value() > 0) && (
-                RTN_Name(rtn) == "free" || RTN_Name(rtn) == "_free" || RTN_Name(rtn) == "__libc_free" || RTN_Name(rtn) == "_gfortran_free")) {
+    //     RTN_Close(rtn);
+    // } else if ((InterceptMemAllocations.Value() > 0) && (
+    //             RTN_Name(rtn) == "free" || RTN_Name(rtn) == "_free" || RTN_Name(rtn) == "__libc_free" || RTN_Name(rtn) == "_gfortran_free")) {
 
-        fprintf(stderr, "Identified routine: free/_free, replacing with Ariel equivalent...\n");
-        RTN_Open(rtn);
+    //     fprintf(stderr, "Identified routine: free/_free, replacing with Ariel equivalent...\n");
+    //     RTN_Open(rtn);
 
-        RTN_InsertCall(rtn, IPOINT_BEFORE,
-            (AFUNPTR) ariel_postfree_instrument,
-                IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
-                IARG_END);
+    //     RTN_InsertCall(rtn, IPOINT_BEFORE,
+    //         (AFUNPTR) ariel_postfree_instrument,
+    //             IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+    //             IARG_END);
 
-        RTN_Close(rtn);
-    } else if (RTN_Name(rtn) == "ariel_output_stats" || RTN_Name(rtn) == "_ariel_output_stats" || RTN_Name(rtn) == "__arielfort_MOD_ariel_output_stats") {
+    //     RTN_Close(rtn);
+    // } 
+    else if (RTN_Name(rtn) == "ariel_output_stats" || RTN_Name(rtn) == "_ariel_output_stats" || RTN_Name(rtn) == "__arielfort_MOD_ariel_output_stats") {
         fprintf(stderr, "Identified routine: ariel_output_stats, replacing with Ariel equivalent..\n");
         RTN_Replace(rtn, (AFUNPTR) mapped_ariel_output_stats);
         fprintf(stderr, "Replacement complete\n");
@@ -1996,9 +2046,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    fprintf(stderr, "ARIEL: Starting program.\n");
+    fprintf(stderr, "ARIEL: Starting program. (with pin3)\n");
+    fprintf(stderr, "keepMallocstrackTrace: %d\n", KeepMallocStackTrace.Value());
     fflush(stdout);
+    
     PIN_StartProgram();
+
+    // sleep(10);
 
     return 0;
 }

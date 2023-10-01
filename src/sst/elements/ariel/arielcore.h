@@ -116,9 +116,9 @@ class ArielCore : public ComponentExtension {
         void fence();
         void unfence();
         void finishCore();
-        void createReadEvent(uint64_t addr, uint32_t size);
-        void createWriteEvent(uint64_t addr, uint32_t size, const uint8_t* payload);
-        void createAllocateEvent(uint64_t vAddr, uint64_t length, uint32_t level, uint64_t ip);
+        void createReadEvent(uint64_t addr, uint32_t size, uint64_t instPtr);
+        void createWriteEvent(uint64_t addr, uint32_t size, const uint8_t* payload, bool isWeightWrite, uint64_t instPtr);
+        void createAllocateEvent(uint64_t vAddr, uint64_t length, uint32_t level, uint64_t ip, bool wflag);
         void createMmapEvent(uint32_t fileID, uint64_t vAddr, uint64_t length, uint32_t level, uint64_t instPtr);
         void createNoOpEvent();
         void createFreeEvent(uint64_t vAddr);
@@ -181,15 +181,15 @@ class ArielCore : public ComponentExtension {
         // interrupt handlers
         bool handleInterrupt(ArielMemoryManager::InterruptAction action);
 
-        void commitReadEvent(const uint64_t address, const uint64_t virtAddr, const uint32_t length);
-        void commitWriteEvent(const uint64_t address, const uint64_t virtAddr, const uint32_t length, const uint8_t* payload);
+        void commitReadEvent(const uint64_t address, const uint64_t virtAddr, const uint32_t length, uint64_t instPtr);
+        void commitWriteEvent(const uint64_t address, const uint64_t virtAddr, const uint32_t length, const uint8_t* payload, bool weightWriteFlag, uint64_t instPtr);
         void commitFlushEvent(const uint64_t address, const uint64_t virtAddr, const uint32_t length);
 
         // Setting the max number of instructions to be simulated
         void setMaxInsts(uint64_t i){max_insts=i;}
 
         void printCoreStatistics();
-        void printTraceEntry(const bool isRead, const uint64_t address, const uint32_t length);
+        // void printTraceEntry(const bool isRead, const uint64_t address, const uint32_t length);
 
     private:
         bool processNextEvent();
@@ -198,6 +198,7 @@ class ArielCore : public ComponentExtension {
         uint32_t coreID;
         uint32_t maxPendingTransactions;
 
+        std::vector<uint64_t> wAllocHints;
 #ifdef HAVE_CUDA
         size_t totalTransfer;
         bool gpu_enabled;

@@ -53,13 +53,12 @@ Opal::Opal(SST::ComponentId_t id, SST::Params& params): Component(id) {
 	opalBase = new OpalBase();
 
 	char* buffer = (char*) malloc(sizeof(char) * 256);
-        size_t buffer_size = sizeof(char) * 256;
 
 	/* Configuring shared memory */
 	/*----------------------------------------------------------------------------------------*/
 	num_shared_mempools = params.find<uint32_t>("shared_mempools", 0);
 	std::cerr << getName().c_str() << "Number of Shared Memory Pools: "<< num_shared_mempools << endl;
-
+    
 	Params sharedMemParams = params.get_scoped_params("shared_mem");
 	shared_mem_size = 0;
 
@@ -67,13 +66,13 @@ Opal::Opal(SST::ComponentId_t id, SST::Params& params): Component(id) {
 
 	for(uint32_t i = 0; i < num_shared_mempools; i++) {
 		memset(buffer, 0 , 256);
-		snprintf(buffer, buffer_size, "mempool%" PRIu32 "", i);
+		sprintf(buffer, "mempool%" PRIu32 "", i);
 		Params memPoolParams = sharedMemParams.get_scoped_params(buffer);
 		sharedMemoryInfo[i] = new MemoryPrivateInfo(opalBase, i, memPoolParams);
 		std::cerr << getName().c_str() << "Configuring Shared " << buffer << std::endl;
 		shared_mem_size += memPoolParams.find<uint64_t>("size", 0);
 		memset(buffer, 0 , 256);
-		snprintf(buffer, buffer_size, "globalMemCntrLink%" PRIu32, i);
+		sprintf(buffer, "globalMemCntrLink%" PRIu32, i);
 		sharedMemoryInfo[i]->link = configureLink(buffer, "1ns", new Event::Handler<MemoryPrivateInfo>((sharedMemoryInfo[i]), &MemoryPrivateInfo::handleRequest));
 	}
 
@@ -81,30 +80,31 @@ Opal::Opal(SST::ComponentId_t id, SST::Params& params): Component(id) {
 	/*----------------------------------------------------------------------------------------*/
 	for(uint32_t i = 0; i < num_nodes; i++) {
 		memset(buffer, 0 , 256);
-		snprintf(buffer, buffer_size, "node%" PRIu32 "", i);
+		sprintf(buffer, "node%" PRIu32 "", i);
 		Params nodePrivateParams = params.get_scoped_params(buffer);
 		nodeInfo[i] = new NodePrivateInfo(opalBase, i, nodePrivateParams);
 		for(uint32_t j=0; j<nodeInfo[i]->cores; j++) {
 			memset(buffer, 0 , 256);
-			snprintf(buffer, buffer_size, "coreLink%" PRIu32, num_cores);
+			sprintf(buffer, "coreLink%" PRIu32, num_cores);
 			nodeInfo[i]->coreInfo[j].coreLink = configureLink(buffer, "1ns", new Event::Handler<CorePrivateInfo>((&nodeInfo[i]->coreInfo[j]), &CorePrivateInfo::handleRequest));
 			memset(buffer, 0 , 256);
-			snprintf(buffer, buffer_size, "mmuLink%" PRIu32, num_cores);
+			sprintf(buffer, "mmuLink%" PRIu32, num_cores);
 			nodeInfo[i]->coreInfo[j].mmuLink = configureLink(buffer, "1ns", new Event::Handler<CorePrivateInfo>((&nodeInfo[i]->coreInfo[j]), &CorePrivateInfo::handleRequest));
 			num_cores++;
 		}
 		for(uint32_t j=0; j<nodeInfo[i]->memory_cntrls; j++) {
 			memset(buffer, 0 , 256);
-			snprintf(buffer, buffer_size, "memCntrLink%" PRIu32, num_memCntrls);
+			sprintf(buffer, "memCntrLink%" PRIu32, num_memCntrls);
 			nodeInfo[i]->memCntrlInfo[j].link = configureLink(buffer, "1ns", new Event::Handler<MemoryPrivateInfo>((&nodeInfo[i]->memCntrlInfo[j]), &MemoryPrivateInfo::handleRequest));
 			num_memCntrls++;
 		}
 
 		char* subID = (char*) malloc(sizeof(char) * 32);
-		snprintf(subID, sizeof(char) * 32, "%" PRIu32, i);
+		sprintf(subID, "%" PRIu32, i);
 		nodeInfo[i]->statLocalMemUsage = registerStatistic<uint64_t>("local_mem_usage", subID );
 		nodeInfo[i]->statSharedMemUsage = registerStatistic<uint64_t>("shared_mem_usage", subID );
 		free(subID);
+		printf("allocation policy: %d\n", nodeInfo[i]->memoryAllocationPolicy);
 	}
 
 	free(buffer);
@@ -129,6 +129,10 @@ void Opal::setNextMemPool( int node, int fault_level )
 {
 	switch(nodeInfo[node]->memoryAllocationPolicy)
 	{
+	case 9:
+		// weight에 해당하는 data일 경우에만 local memory -> remote memory가 여러 개일 경우 생각해봐야됨
+		nodeInfo[node]->allocatedmempool = 0;
+		break;
 	case 8:
 		//alternate allocation policy 1:16
 		nodeInfo[node]->nextallocmem = ( nodeInfo[node]->nextallocmem + 1 ) % 17;
@@ -190,7 +194,7 @@ void Opal::setNextMemPool( int node, int fault_level )
 		break;
 
 	}
-
+	
 }
 
 void Opal::processHint(int node, int fileId, uint64_t vAddress, int size)
@@ -453,13 +457,34 @@ bool Opal::processRequest(int node, int coreId, uint64_t vAddress, int fault_lev
 			response = allocateFromReservedMemory(node, response.address, vAddress, pages);
 
 		else {
-			if( !nodeInfo[node]->allocatedmempool ) {
-				response = allocateLocalMemory(node, coreId, vAddress, fault_level, pages);
-				//std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated local address: " << response.address << " pages: "<< pages << " level: " << fault_level  << std::endl;
+			if(nodeInfo[node]->memoryAllocationPolicy==9){
+				// todo: weight 메모리인지 아닌지 확인 -> weight alloc 주소 벡터에서 확인
+				auto srch_idx = std::find(opalBase->wAllocHints.begin(), opalBase->wAllocHints.end(), vAddress);
+				// std::cout << "addr: " << vAddress << "search idx: " << srch_idx-opalBase->wAllocHints.begin() << " opal base size:" << opalBase->wAllocHints.size() << std::endl;
+
+				if (srch_idx != opalBase->wAllocHints.end()){
+					nodeInfo[node]->allocatedmempool = 1;
+					// int pages_n = opalBase->wAllocPageHints[srch_idx-opalBase->wAllocHints.begin()];
+					response = allocateSharedMemory(node, coreId, vAddress, fault_level, pages);
+					// std::cout << "addr: " << vAddress << "search idx: " << srch_idx-opalBase->wAllocHints.begin() << " opal base size:" << opalBase->wAllocHints.size() << std::endl;
+					// printf("[Opal.cc] response page address: %lx, allocated shared address: %lx, pages: %d \n", vAddress, response.address, pages);
+					// std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated shared address: " << response.address << " pages: " << " level: " << fault_level << std::endl;
+				}
+				else{
+					response = allocateLocalMemory(node, coreId, vAddress, fault_level, pages);
+					// printf("[Opal.cc] response page address: %lx, allocated local address: %lx, pages: %d \n", vAddress, response.address, pages);
+					// std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated local address: " << response.address << " pages: "<< pages << " level: " << fault_level  << std::endl;
+				}
 			}
-			else {
-				response = allocateSharedMemory(node, coreId, vAddress, fault_level, pages);
-				//std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated shared address: " << response.address << " pages: " << " level: " << fault_level << std::endl;
+			else{
+				if( !nodeInfo[node]->allocatedmempool ) {
+					response = allocateLocalMemory(node, coreId, vAddress, fault_level, pages);
+					// std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated local address: " << response.address << " pages: "<< pages << " level: " << fault_level  << std::endl;
+				}
+				else {
+					response = allocateSharedMemory(node, coreId, vAddress, fault_level, pages);
+					// std::cerr << getName() << " Node: " << node << " core " << coreId << " response page address: " << vAddress << " allocated shared address: " << response.address << " pages: " << " level: " << fault_level << std::endl;
+				}
 			}
 		}
 	}
@@ -491,7 +516,19 @@ bool Opal::tick(SST::Cycle_t x)
 			switch(ev->getType()) {
 			case SST::OpalComponent::EventType::HINT:
 			{
-				std::cerr << getName().c_str() << " node: " << ev->getNodeId() << " core: "<< ev->getCoreId() << " request page address: " << ev->getAddress() << " hint" << std::endl;
+				uint64_t tmp_addr = ev->getAddress() >> 12;
+				int node_id = ev->getNodeId();
+				// printf("[Opal.cc] request page address: %lx, size: %d, hint! \n", tmp_addr, ev->getSize()/nodeInfo[node_id]->page_size);
+				//std::cerr << getName().c_str() << " node: " << ev->getNodeId() << " core: "<< ev->getCoreId() << " request page address: " << ev->getAddress() << " hint" << std::endl;
+				// weight allocation 벡터에 넣기 (processWeightAllocHint)
+				if (nodeInfo[node_id]->memoryAllocationPolicy==9){
+					for (int i=0; i<(ev->getSize()/(nodeInfo[node_id]->page_size)); i++){
+						opalBase->wAllocHints.push_back(tmp_addr+i);
+					}
+					// opalBase->wAllocPageHints.push_back();
+					
+				}
+				
 			}
 			break;
 

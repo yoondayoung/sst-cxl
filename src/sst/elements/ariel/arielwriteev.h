@@ -27,14 +27,15 @@ namespace ArielComponent {
 class ArielWriteEvent : public ArielEvent {
 
     public:
-        ArielWriteEvent(uint64_t wAddr, uint32_t length, const uint8_t* payloadData) :
-                writeAddress(wAddr), writeLength(length) {
+        ArielWriteEvent(uint64_t wAddr, uint32_t length, const uint8_t* payloadData, bool isWeightWrite, uint64_t ip) : // for identifying weight allocation
+                writeAddress(wAddr), writeLength(length), isWeight(isWeightWrite), instPtr(ip) {
 
                 payload = new uint8_t[length];
 
                 for( int i = 0; i < length; ++i ) {
                 	payload[i] = payloadData[i];
                 }
+
         }
 
         ~ArielWriteEvent() {
@@ -57,10 +58,19 @@ class ArielWriteEvent : public ArielEvent {
         		return payload;
         }
 
+        bool getIsWeight() const { return isWeight; }
+
+        uint64_t getInstructionPointer() const { return instPtr; }
+    
+    // for trace
+    protected:
+        uint64_t instPtr;
+
     private:
         const uint64_t writeAddress;
         const uint32_t writeLength;
               uint8_t* payload;
+              bool isWeight;
 
 };
 

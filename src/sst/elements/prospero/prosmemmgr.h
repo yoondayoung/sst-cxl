@@ -27,7 +27,7 @@ class ProsperoMemoryManager {
 public:
 	ProsperoMemoryManager(const uint64_t pageSize, Output* output);
 	~ProsperoMemoryManager();
-	uint64_t translate(const uint64_t virtAddr);
+	uint64_t translate(const uint64_t virtAddr, bool isWeight);
 
 private:
 	std::map<uint64_t, uint64_t> pageTable;

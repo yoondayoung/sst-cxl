@@ -190,6 +190,8 @@ void StandardInterface::send(StandardMem::Request* req) {
     fflush(stdout);
 #endif
     MemEventBase *me = static_cast<MemEventBase*>(req->convert(converter_));
+    // for cxl allocation
+    me->setWeightFlag(req->getWeightFlag());
     if (req->needsResponse())
         requests_[me->getID()] = std::make_pair(req,me->getCmd());   /* Save this request so we can use it when a response is returned */
     else
@@ -198,6 +200,7 @@ void StandardInterface::send(StandardMem::Request* req) {
     debug.debug(_L4_, "E: %-40" PRIu64 "  %-20s Event:Send    (%s)\n", 
         getCurrentSimCycle(), getName().c_str(), me->getBriefString().c_str());
 #endif
+    // printf("add weightFlag to MemEventBase:%d\n", me->getWeightFlag());
     link_->send(me);
 }
 
@@ -372,6 +375,8 @@ SST::Event* StandardInterface::MemEventConverter::convert(StandardMem::Write* re
     write->setDst(iface->link_->getTargetDestination(bAddr));
     write->setVirtualAddress(req->vAddr);
     write->setInstructionPointer(req->iPtr);
+    // for weight allocation
+    write->setWeightFlag(req->getWeightFlag());
     
     if (noncacheable)    
         write->setFlag(MemEvent::F_NONCACHEABLE);
@@ -389,6 +394,7 @@ SST::Event* StandardInterface::MemEventConverter::convert(StandardMem::Write* re
     } 
     debugChecks(write);
 #endif
+    // printf("~!!this memory converter interface is used!!\n");
     return write;
 }
 

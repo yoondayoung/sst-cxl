@@ -98,7 +98,6 @@ class ArielMemoryManagerCache : public ArielMemoryManager{
             return;
         }
 
-
     protected:
         Statistic<uint64_t>* statTranslationCacheHits;
         Statistic<uint64_t>* statTranslationCacheEvict;

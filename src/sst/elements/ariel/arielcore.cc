@@ -77,7 +77,7 @@ ArielCore::ArielCore(ComponentId_t id, ArielTunnel *tunnel,
 #endif
 
     char* subID = (char*) malloc(sizeof(char) * 32);
-    snprintf(subID, sizeof(char)*32, "%" PRIu32, thisCoreID);
+    sprintf(subID, "%" PRIu32, thisCoreID);
 
     statReadRequests  = registerStatistic<uint64_t>( "read_requests", subID );
     statWriteRequests = registerStatistic<uint64_t>( "write_requests", subID );
@@ -156,20 +156,20 @@ void ArielCore::setRtlLink(Link* rtllink) {
     RtlLink = rtllink;
 }
 
-void ArielCore::printTraceEntry(const bool isRead,
-            const uint64_t address, const uint32_t length) {
+// void ArielCore::printTraceEntry(const bool isRead,
+//             const uint64_t address, const uint32_t length) {
 
-    if(enableTracing) {
-        if(isRead) {
-                traceGen->publishEntry(currentCycles, address, length, READ);
-        } else {
-                traceGen->publishEntry(currentCycles, address, length, WRITE);
-        }
-    }
-}
+//     if(enableTracing) {
+//         if(isRead) {
+//                 traceGen->publishEntry(currentCycles, address, length, READ);
+//         } else {
+//                 traceGen->publishEntry(currentCycles, address, length, WRITE);
+//         }
+//     }
+// }
 
 void ArielCore::commitReadEvent(const uint64_t address,
-            const uint64_t virtAddress, const uint32_t length) {
+            const uint64_t virtAddress, const uint32_t length, const uint64_t instPtr) {
     if(length > 0) {
         StandardMem::Read *req = new StandardMem::Read(address, length, 0, virtAddress);
 #ifdef HAVE_CUDA
@@ -184,16 +184,23 @@ void ArielCore::commitReadEvent(const uint64_t address,
         }
 #endif
         if(enableTracing) {
-            printTraceEntry(true, (const uint64_t) req->pAddr, (const uint32_t) length);
+            auto srch_idx = std::find(wAllocHints.begin(), wAllocHints.end(), virtAddress);
+            if (srch_idx != wAllocHints.end())
+                traceGen->publishEntry(currentCycles, (const uint64_t) virtAddress, length, WEIGHT_READ, instPtr);
+            else
+                traceGen->publishEntry(currentCycles, (const uint64_t) virtAddress, length, READ, instPtr);
+            // traceGen->publishEntry(inst_count, (const uint64_t) virtAddress, length, READ, instPtr);
+            // printTraceEntry(true, (const uint64_t) req->pAddr, (const uint32_t) length);
+            // printTraceEntry(true, (const uint64_t) virtAddress, (const uint32_t) length);
         }
-
+    
         // Actually send the event to the cache
         cacheLink->send(req);
     }
 }
 
 void ArielCore::commitWriteEvent(const uint64_t address,
-        const uint64_t virtAddress, const uint32_t length, const uint8_t* payload) {
+        const uint64_t virtAddress, const uint32_t length, const uint8_t* payload, bool weightWriteFlag, const uint64_t instPtr) {
 
     if(length > 0) {
         std::vector<uint8_t> data;
@@ -205,7 +212,7 @@ void ArielCore::commitWriteEvent(const uint64_t address,
                 char* buffer = new char[64];
                 std::string payloadString = "";
                 for(int i = 0; i < length; ++i) {
-                    snprintf(buffer, 64, "0x%X ", payload[i]);
+                    sprintf(buffer, "0x%X ", payload[i]);
                     payloadString.append(buffer);
                 }
 
@@ -218,7 +225,8 @@ void ArielCore::commitWriteEvent(const uint64_t address,
             data.resize(length, 0);
         }
         
-        StandardMem::Write *req = new StandardMem::Write(address, length, data, false, 0, virtAddress);
+        // to do: 여기에 weight malloc flag를 추가해야됨
+        StandardMem::Write *req = new StandardMem::Write(address, length, data, false, 0, virtAddress, 0, 0, weightWriteFlag);
 
 #ifdef HAVE_CUDA
         if(isGpuEx()){
@@ -232,10 +240,20 @@ void ArielCore::commitWriteEvent(const uint64_t address,
         }
 #endif
         if(enableTracing) {
-            printTraceEntry(false, (const uint64_t) req->pAddr, (const uint32_t) length);
+            // 여기서 weight인지 판별해야겠음
+            auto srch_idx = std::find(wAllocHints.begin(), wAllocHints.end(), virtAddress);
+            if (srch_idx != wAllocHints.end())
+                traceGen->publishEntry(currentCycles, (const uint64_t) virtAddress, length, WEIGHT_WRITE, instPtr);
+            else
+                traceGen->publishEntry(currentCycles, (const uint64_t) virtAddress, length, WRITE, instPtr);
+            // printTraceEntry(false, (const uint64_t) req->pAddr, (const uint32_t) length);
+            // printTraceEntry(false, (const uint64_t) virtAddress, (const uint32_t) length);
         }
 
         // Actually send the event to the cache
+        // to do: req에 isWeight 정보 담기
+        // printf("cur weight flag:::%d, original::::%d\n", req->getWeightFlag(), weightWriteFlag);
+        // printf("[commitWriteEvent] Paddr: %lx, Vaddr: %lx, size: %d\n", address, virtAddress, length);
         cacheLink->send(req);
     }
 }
@@ -677,19 +695,22 @@ void ArielCore::createNoOpEvent() {
     ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Generated a No Op event on core %" PRIu32 "\n", coreID));
 }
 
-void ArielCore::createReadEvent(uint64_t address, uint32_t length) {
-    ArielReadEvent* ev = new ArielReadEvent(address, length);
+void ArielCore::createReadEvent(uint64_t address, uint32_t length, uint64_t instPtr) {
+    ArielReadEvent* ev = new ArielReadEvent(address, length, instPtr);
     coreQ->push(ev);
 
     ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Generated a READ event, addr=%" PRIu64 ", length=%" PRIu32 "\n", address, length));
 }
 
-void ArielCore::createAllocateEvent(uint64_t vAddr, uint64_t length, uint32_t level, uint64_t instPtr) {
-    ArielAllocateEvent* ev = new ArielAllocateEvent(vAddr, length, level, instPtr);
+void ArielCore::createAllocateEvent(uint64_t vAddr, uint64_t length, uint32_t level, uint64_t instPtr, bool wflag) {
+    // printf( "[ArielCore::createAllocateEvent]Generated an allocate event, vAddr(map)=%x, length=%ld in level %d from IP %ld\n",
+                    // vAddr, length, level, instPtr);
+    ArielAllocateEvent* ev = new ArielAllocateEvent(vAddr, length, level, instPtr, wflag);
     coreQ->push(ev);
 
     ARIEL_CORE_VERBOSE(2, output->verbose(CALL_INFO, 2, 0, "Generated an allocate event, vAddr(map)=%" PRIu64 ", length=%" PRIu64 " in level %" PRIu32 " from IP %" PRIx64 "\n",
                     vAddr, length, level, instPtr));
+    
 }
 
 void ArielCore::createMmapEvent(uint32_t fileID, uint64_t vAddr, uint64_t length, uint32_t level, uint64_t instPtr) {
@@ -707,10 +728,11 @@ void ArielCore::createFreeEvent(uint64_t vAddr) {
     ARIEL_CORE_VERBOSE(2, output->verbose(CALL_INFO, 2, 0, "Generated a free event for virtual address=%" PRIu64 "\n", vAddr));
 }
 
-void ArielCore::createWriteEvent(uint64_t address, uint32_t length, const uint8_t* payload) {
-    ArielWriteEvent* ev = new ArielWriteEvent(address, length, payload);
-    coreQ->push(ev);
-
+void ArielCore::createWriteEvent(uint64_t address, uint32_t length, const uint8_t* payload, bool isWeightWrite, uint64_t instPtr) {
+    // std::cout << "createWrite size:" << length << std::endl;
+    // printf("[createWriteEvent] write addr: %lx, createWrite size:%d\n", address, length);
+    ArielWriteEvent* ev = new ArielWriteEvent(address, length, payload, isWeightWrite, instPtr);
+    coreQ->push(ev); // todo : weight allocation인거 알리기
     ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Generated a WRITE event, addr=%" PRIu64 ", length=%" PRIu32 "\n", address, length));
 }
 
@@ -888,11 +910,11 @@ bool ArielCore::refillQueue() {
 
                         switch(ac.command) {
                             case ARIEL_PERFORM_READ:
-                                    createReadEvent(ac.inst.addr, ac.inst.size);
+                                    createReadEvent(ac.inst.addr, ac.inst.size, ac.instPtr);
                                     break;
 
-                            case ARIEL_PERFORM_WRITE:
-                                    createWriteEvent(ac.inst.addr, ac.inst.size, &ac.inst.payload[0]);
+                            case ARIEL_PERFORM_WRITE: // to do: weight allocation인거 알리기
+                                    createWriteEvent(ac.inst.addr, ac.inst.size, &ac.inst.payload[0], ac.inst.isWeight, ac.instPtr);
                                     break;
 
                             case ARIEL_END_INSTRUCTION:
@@ -927,7 +949,7 @@ bool ArielCore::refillQueue() {
                 break;
 
             case ARIEL_ISSUE_TLM_MAP:
-                createAllocateEvent(ac.mlm_map.vaddr, ac.mlm_map.alloc_len, ac.mlm_map.alloc_level, ac.instPtr);
+                createAllocateEvent(ac.mlm_map.vaddr, ac.mlm_map.alloc_len, ac.mlm_map.alloc_level, ac.instPtr, ac.mlm_map.isWeight);
                 break;
 
             case ARIEL_ISSUE_TLM_FREE:
@@ -997,7 +1019,7 @@ void ArielCore::handleReadRequest(ArielReadEvent* rEv) {
         ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Core %" PRIu32 " issuing read, VAddr=%" PRIu64 ", Size=%" PRIu64 ", PhysAddr=%" PRIu64 "\n",
                             coreID, readAddress, readLength, physAddr));
 
-        commitReadEvent(physAddr, readAddress, (uint32_t) readLength);
+        commitReadEvent(physAddr, readAddress, (uint32_t) readLength, rEv->getInstructionPointer());
     } else {
         ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Core %" PRIu32 " generating a split read request: Addr=%" PRIu64 " Length=%" PRIu64 "\n",
                             coreID, readAddress, readLength));
@@ -1032,8 +1054,8 @@ void ArielCore::handleReadRequest(ArielReadEvent* rEv) {
                 }*/
         }
 
-        commitReadEvent(physLeftAddr, leftAddr, (uint32_t) leftSize);
-        commitReadEvent(physRightAddr, rightAddr, (uint32_t) rightSize);
+        commitReadEvent(physLeftAddr, leftAddr, (uint32_t) leftSize, rEv->getInstructionPointer());
+        commitReadEvent(physRightAddr, rightAddr, (uint32_t) rightSize, rEv->getInstructionPointer());
 
         statSplitReadRequests->addData(1);
     }
@@ -1042,11 +1064,16 @@ void ArielCore::handleReadRequest(ArielReadEvent* rEv) {
     statReadRequestSizes->addData(readLength);
 }
 
+// to do: 여기서 opal base requestQ 안에 넣어야함
 void ArielCore::handleWriteRequest(ArielWriteEvent* wEv) {
     ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Core %" PRIu32 " processing a write event...\n", coreID));
-
+    // printf("Core %d processing a write event... in arielcore.cc/handleWriteRequest\n", coreID);
+    
     const uint64_t writeAddress = wEv->getAddress();
     const uint64_t writeLength  = std::min((uint64_t) wEv->getLength(), cacheLineSize); // Trim to cacheline size (occurs rarely for instructions such as xsave and fxsave)
+    // weight flag 정보
+    bool weightWriteFlag = wEv->getIsWeight();
+    //printf("[handleWriteRequest] write addr: %lx, createWrite size:%d\n", writeAddress, writeLength);
 
     // No longer neccessary due to trimming above
 /*    if(writeLength > cacheLineSize) {
@@ -1077,9 +1104,9 @@ void ArielCore::handleWriteRequest(ArielWriteEvent* wEv) {
 
         if( writePayloads ) {
             uint8_t* payloadPtr = wEv->getPayload();
-            commitWriteEvent(physAddr, writeAddress, (uint32_t) writeLength, payloadPtr);
+            commitWriteEvent(physAddr, writeAddress, (uint32_t) writeLength, payloadPtr, weightWriteFlag, wEv->getInstructionPointer());
         } else {
-            commitWriteEvent(physAddr, writeAddress, (uint32_t) writeLength, NULL);
+            commitWriteEvent(physAddr, writeAddress, (uint32_t) writeLength, NULL, weightWriteFlag, wEv->getInstructionPointer());
         }
     } else {
         ARIEL_CORE_VERBOSE(4, output->verbose(CALL_INFO, 4, 0, "Core %" PRIu32 " generating a split write request: Addr=%" PRIu64 " Length=%" PRIu64 "\n",
@@ -1117,11 +1144,11 @@ void ArielCore::handleWriteRequest(ArielWriteEvent* wEv) {
 
         if( writePayloads ) {
             uint8_t* payloadPtr = wEv->getPayload();
-            commitWriteEvent(physLeftAddr, leftAddr, (uint32_t) leftSize, payloadPtr);
-            commitWriteEvent(physRightAddr, rightAddr, (uint32_t) rightSize, &payloadPtr[leftSize]);
+            commitWriteEvent(physLeftAddr, leftAddr, (uint32_t) leftSize, payloadPtr, weightWriteFlag, wEv->getInstructionPointer());
+            commitWriteEvent(physRightAddr, rightAddr, (uint32_t) rightSize, &payloadPtr[leftSize], weightWriteFlag, wEv->getInstructionPointer());
         } else {
-            commitWriteEvent(physLeftAddr, leftAddr, (uint32_t) leftSize, NULL);
-            commitWriteEvent(physRightAddr, rightAddr, (uint32_t) rightSize, NULL);
+            commitWriteEvent(physLeftAddr, leftAddr, (uint32_t) leftSize, NULL, weightWriteFlag, wEv->getInstructionPointer());
+            commitWriteEvent(physRightAddr, rightAddr, (uint32_t) rightSize, NULL, weightWriteFlag, wEv->getInstructionPointer());
         }
         statSplitWriteRequests->addData(1);
     }
@@ -1140,8 +1167,14 @@ void ArielCore::handleMmapEvent(ArielMmapEvent* aEv) {
 void ArielCore::handleAllocationEvent(ArielAllocateEvent* aEv) {
     output->verbose(CALL_INFO, 2, 0, "Handling a memory allocation event, vAddr=%" PRIu64 ", length=%" PRIu64 ", at level=%" PRIu32 " with malloc ID=%" PRIu64 "\n",
                 aEv->getVirtualAddress(), aEv->getAllocationLength(), aEv->getAllocationLevel(), aEv->getInstructionPointer());
-
-    memmgr->allocateMalloc(aEv->getAllocationLength(), aEv->getAllocationLevel(), aEv->getVirtualAddress(), aEv->getInstructionPointer(), coreID);
+    // printf("handleAllocationEvent is used!\n");
+    if(enableTracing){
+        //     traceGen->publishEntry(currentCycles, aEv->getVirtualAddress(), aEv->getAllocationLength(), WEIGHT_HINT);
+        for (int i=0; i<(aEv->getAllocationLength()); i++){
+            wAllocHints.push_back(aEv->getVirtualAddress()+i);
+        }
+    }
+    memmgr->allocateMalloc(aEv->getAllocationLength(), aEv->getAllocationLevel(), aEv->getVirtualAddress(), aEv->getInstructionPointer(), coreID, aEv->getIsWeightAllocation());
 }
 
 void ArielCore::handleFlushEvent(ArielFlushEvent *flEv) {
@@ -1395,10 +1428,11 @@ void ArielCore::handleRtlAckEvent(SST::Event* e) {
         //======================================================================================//
     }
     if(ev->RtlData.rtl_inp_ptr != nullptr) {
-        rtl_inp_ptr = ev->RtlData.rtl_inp_ptr;
-        ArielReadEvent *are = new ArielReadEvent((uint64_t)ev->RtlData.rtl_inp_ptr, (uint64_t)ev->RtlData.rtl_inp_size);
-        output->verbose(CALL_INFO, 1, 0, "\nAriel received Event from RTL. Generating Read Request\n");
-        handleReadRequest(are);
+        output->fatal(CALL_INFO, -1, "Error: RTL not implemented\n");
+        // rtl_inp_ptr = ev->RtlData.rtl_inp_ptr;
+        // ArielReadEvent *are = new ArielReadEvent((uint64_t)ev->RtlData.rtl_inp_ptr, (uint64_t)ev->RtlData.rtl_inp_size, ev->get_rtl_ctrl_ptr);
+        // output->verbose(CALL_INFO, 1, 0, "\nAriel received Event from RTL. Generating Read Request\n");
+        // handleReadRequest(are);
     }
 
     return;    
@@ -1409,7 +1443,6 @@ void ArielCore::printCoreStatistics() {
 }
 
 bool ArielCore::processNextEvent() {
-
     // Upon every call, check if the core is drained and we are fenced. If so, unfence
     // return true; /* Todo: reevaluate if this is needed */
     // Attempt to refill the queue
@@ -1465,6 +1498,7 @@ bool ArielCore::processNextEvent() {
                     statInstructionCount->addData(1);
                     inst_count++;
                             removeEvent = true;
+                    // to do: add the weight malloc flag info
                     handleWriteRequest(dynamic_cast<ArielWriteEvent*>(nextEvent));
                 } else {
                     ARIEL_CORE_VERBOSE(16, output->verbose(CALL_INFO, 16, 0, "Pending transaction queue is currently full for core %" PRIu32 ", core will stall for new events\n", coreID));

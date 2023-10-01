@@ -104,7 +104,7 @@ bool MESIL1::handleGetS(MemEvent * event, bool inMSHR) {
             recordPrefetchResult(line, statPrefetchHit);
 
             if (event->isLoadLink())
-                line->atomicStart(timestamp_ + llscBlockCycles_);
+                line->atomicStart();
             data.assign(line->getData()->begin() + (event->getAddr() - event->getBaseAddr()), line->getData()->begin() + (event->getAddr() - event->getBaseAddr() + event->getSize()));
             sendTime = sendResponseUp(event, &data, inMSHR, line->getTimestamp());
             line->setTimestamp(sendTime - 1);
@@ -380,7 +380,7 @@ bool MESIL1::handleFlushLine(MemEvent* event, bool inMSHR) {
     /* If we're here, state is stable */
 
     /* Flush fails if line is locked */
-    if (state != I && line->isLocked(timestamp_)) {
+    if (state != I && line->isLocked()) {
         if (!inMSHR || !mshr_->getProfiled(addr)) {
             stat_eventState[(int)Command::FlushLine][state]->addData(1);
             recordLatencyType(event->getID(), LatType::MISS);
@@ -443,7 +443,7 @@ bool MESIL1::handleFlushLineInv(MemEvent* event, bool inMSHR) {
         }
     }
     /* Flush fails if line is locked */
-    if (state != I && line->isLocked(timestamp_)) {
+    if (state != I && line->isLocked()) {
         if (!inMSHR || !mshr_->getProfiled(addr)) {
             stat_eventState[(int)Command::FlushLineInv][state]->addData(1);
             recordLatencyType(event->getID(), LatType::MISS);
@@ -595,7 +595,7 @@ bool MESIL1::handleForceInv(MemEvent* event, bool inMSHR) {
         case E:
         case M:
         case S_B:
-            if (line->isLocked(timestamp_)) {
+            if (line->isLocked()) {
                 if (!inMSHR && allocateMSHR(event, true, 0) == MemEventStatus::Reject)
                     return false;
                 else {
@@ -665,7 +665,7 @@ bool MESIL1::handleFetchInv(MemEvent* event, bool inMSHR) {
             delete event;
             return true;
         case M:
-            if (line->isLocked(timestamp_)) {
+            if (line->isLocked()) {
                 if (!inMSHR && (allocateMSHR(event, true, 0) == MemEventStatus::Reject))
                     return false;
                 else {
@@ -730,7 +730,7 @@ bool MESIL1::handleFetchInvX(MemEvent* event, bool inMSHR) {
     switch (state) {
         case E:
         case M:
-            if (line->isLocked(timestamp_)) {
+            if (line->isLocked()) {
                 if (!inMSHR && (allocateMSHR(event, true, 0) == MemEventStatus::Reject)) {
                     return false;
                 } else {
@@ -765,10 +765,7 @@ bool MESIL1::handleFetchInvX(MemEvent* event, bool inMSHR) {
         eventDI.newst = line->getState();
         eventDI.verboseline = line->getString();
     }
-    if (inMSHR)
-        cleanUpAfterRequest(event, inMSHR);
-    else
-        delete event;
+    delete event;
     return true;
 }
 
@@ -794,7 +791,7 @@ bool MESIL1::handleGetSResp(MemEvent* event, bool inMSHR) {
         printDataValue(addr, line->getData(), false);
 
     if (req->isLoadLink())
-        line->atomicStart(timestamp_ + llscBlockCycles_);
+        line->atomicStart();
 
     if (is_debug_addr(addr))
         printDataValue(addr, line->getData(), true);
@@ -855,7 +852,7 @@ bool MESIL1::handleGetXResp(MemEvent* event, bool inMSHR) {
                 }
 
                 if (req->isLoadLink())
-                    line->atomicStart(timestamp_ + llscBlockCycles_);
+                    line->atomicStart();
 
                 if (localPrefetch) {
                     line->setPrefetch(true);
@@ -1106,7 +1103,7 @@ bool MESIL1::handleEviction(Addr addr, L1CacheLine*& line) {
         evictDI.oldst = line->getState();
 
     /* L1s can have locked cache lines which prevents replacement */
-    if (line->isLocked(timestamp_)) {
+    if (line->isLocked()) {
         stat_eventStalledForLock->addData(1);
         if (is_debug_addr(line->getAddr()))
             printDebugAlloc(false, line->getAddr(), "InProg, line locked");
@@ -1181,7 +1178,7 @@ bool MESIL1::handleEviction(Addr addr, L1CacheLine*& line) {
 void MESIL1::cleanUpAfterRequest(MemEvent * event, bool inMSHR) {
     Addr addr = event->getBaseAddr();
     Command cmd = event->getCmd();
-    
+
     /* Remove from MSHR */
     if (inMSHR) {
         mshr_->removeFront(addr);

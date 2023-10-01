@@ -27,8 +27,8 @@ namespace ArielComponent {
 class ArielReadEvent : public ArielEvent {
 
     public:
-        ArielReadEvent(uint64_t rAddr, uint32_t length) :
-                readAddress(rAddr), readLength(length) {
+        ArielReadEvent(uint64_t rAddr, uint32_t length, uint64_t ip) :
+                readAddress(rAddr), readLength(length), instPtr(ip) {
         }
 
         ~ArielReadEvent() {
@@ -45,6 +45,12 @@ class ArielReadEvent : public ArielEvent {
         uint32_t getLength() const {
                 return readLength;
         }
+
+        uint64_t getInstructionPointer() const { return instPtr; }
+    
+   // for trace
+   protected:
+        uint64_t instPtr;
 
     private:
         const uint64_t readAddress;

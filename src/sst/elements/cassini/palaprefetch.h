@@ -48,7 +48,6 @@ struct StrideFilter
     PrefetcherState state;
 };
 
-
 class PalaPrefetcher : public SST::MemHierarchy::CacheListener
 {
 public:
@@ -78,7 +77,9 @@ public:
             { "page_size",                   "Start of Address Range, for this controller.", "4096"},
             { "overrun_page_boundaries",     "Allow prefetcher to run over page alignment boundaries, default is 0 (false)", "0"},
             { "tag_size",                    "Number of bits used for address matching in table", "48"},
-            { "addr_size",                   "Number of bits used for addresses", "64"}
+            { "addr_size",                   "Number of bits used for addresses", "64"},
+            { "prefetcher_mode",                    "Number of bits used for address matching in table", "1"},
+            { "prefetch_table_path",                    "prefetch table file(text file)", ""},
     )
 
     SST_ELI_DOCUMENT_STATISTICS(
@@ -89,7 +90,7 @@ public:
     )
 
 private:
-    void     DispatchRequest(Addr targetAddress);
+    void     DispatchRequest(Addr targetAddress, Addr tag);
 
     Output* output;
     std::vector<Event::HandlerBase*> registeredCallbacks;
@@ -98,12 +99,20 @@ private:
     std::deque< std::unordered_map< uint64_t, StrideFilter >::iterator >* recentAddrListQueue;
     std::deque< std::unordered_map< uint64_t, StrideFilter >::iterator >::iterator it;
 
+    // for dnn prefetcher
+    std::unordered_map< uint64_t, std::vector<uint64_t> >* DNNPrefetchTable;
+    string prefetchTablePath;
+
+    // for pc check
+    std::vector<uint64_t>* prefetchIPList;
+
     uint64_t pageSize;
     uint64_t blockSize;
     uint64_t tagSize;
     uint32_t addressSize;
 
     bool     overrunPageBoundary;
+    uint32_t     prefetcherMode;
     uint32_t prefetchHistoryCount;
     uint32_t recentAddrListCount;
     uint32_t nextRecentAddressIndex;

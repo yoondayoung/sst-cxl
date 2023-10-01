@@ -81,10 +81,10 @@ void ArielMemoryManagerSimple::allocate(const uint64_t size, const uint32_t leve
 
         output->verbose(CALL_INFO, 4, 0, "Allocating memory page, physical page=%" PRIu64 ", virtual page=%" PRIu64 "\n",
                 nextPhysPage, nextVirtPage);
-
+        // printf("Allocating memory page, physical page=%d, virtual page=%d \n",nextPhysPage, nextVirtPage);
         nextVirtPage += pageSize;
     }
-
+    // printf("use this allocate!!\n");
     output->verbose(CALL_INFO, 4, 0, "Request leaves: %" PRIu32 " free pages\n",
         (uint32_t) freePages.size());
 
@@ -139,7 +139,7 @@ uint64_t ArielMemoryManagerSimple::translateAddress(uint64_t virtAddr) {
 
         // Perform an allocation so we can then re-find the address
         allocate(8, 0, virtAddr - offset);
-
+        // printf("this is allocate in memmgr_simple\n");
         // Now attempt to refind it
         const uint64_t newPhysAddr = translateAddress(virtAddr);
 

@@ -16,6 +16,7 @@
 #include "sst_config.h"
 #include "strideprefetch.h"
 
+
 #include <vector>
 #include "stdlib.h"
 
@@ -28,13 +29,14 @@ using namespace SST;
 using namespace SST::Cassini;
 
 void StridePrefetcher::notifyAccess(const CacheListenerNotification& notify) {
+    
     const NotifyAccessType notifyType = notify.getAccessType();
     const NotifyResultType notifyResType = notify.getResultType();
     const Addr addr = notify.getPhysicalAddress();
 
     if (notifyType != READ && notifyType != WRITE)
         return;
-
+    // std::cout << "ip:" << notify.getInstructionPointer() << std::endl;
     // Put address into our recent address list
     recentAddrList[nextRecentAddressIndex] = addr;
     nextRecentAddressIndex = (nextRecentAddressIndex + 1) % recentAddrListCount;

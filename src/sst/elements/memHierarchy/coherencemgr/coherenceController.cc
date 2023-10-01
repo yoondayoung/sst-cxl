@@ -615,15 +615,17 @@ MemEventStatus CoherenceController::allocateMSHR(MemEvent * event, bool fwdReq, 
     //      - MSHR too full to accept prefetches
     if (event->isPrefetch() && event->getRqstr() == cachename_) {
         if (dropPrefetchLevel_ <= mshr_->getSize()) {
+            // std::cout << "[dropPrefetchLevel issue]" << mshr_->getSize() << " / " << dropPrefetchLevel_ << std::endl;
             eventDI.action = "Reject";
             eventDI.reason = "Prefetch drop level";
             return MemEventStatus::Reject;
         }
-        if (maxOutstandingPrefetch_ <= outstandingPrefetches_) {
-            eventDI.action = "Reject";
-            eventDI.reason = "Max outstanding prefetches";
-            return MemEventStatus::Reject;
-        }
+        // if (maxOutstandingPrefetch_ <= outstandingPrefetches_) {
+        //     std::cout << "[outstanding prefetch issue]" << outstandingPrefetches_ << " / " << maxOutstandingPrefetch_ << std::endl;
+        //     eventDI.action = "Reject";
+        //     eventDI.reason = "Max outstanding prefetches";
+        //     return MemEventStatus::Reject;
+        // }
     }
 
     int end_pos = mshr_->insertEvent(event->getBaseAddr(), event, pos, fwdReq, stallEvict);

@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <poll.h>
 #include <queue>
+// #include <vector>
 
 #include <sst/core/sst_types.h>
 #include <sst/core/event.h>
@@ -72,6 +73,10 @@ namespace SST
 				std::queue<OpalEvent*> requestQ; // stores page fault requests, hints and shootdown acknowledgement events from all the cores
 
 				std::map<int, std::pair<std::vector<int>*, std::vector<uint64_t>* > > mmapFileIdHints; // used to store reserved memory which is useful for inter-node communication
+
+				// to get weight allocation hints (weight alloc 해야되는 주소 저장)
+				std::vector<uint64_t> wAllocHints;
+				std::vector<uint32_t> wAllocPageHints;
 		};
 
 		class MemoryPrivateInfo
@@ -146,8 +151,12 @@ namespace SST
 				void setOwner(OpalBase *base) { opalBase = base; }
 
 				void handleRequest(SST::Event* e)
-				{
+				{	
+					// to do: 여기서 weight allocation이라는걸 알아야함
 					OpalEvent *ev =  static_cast<OpalComponent::OpalEvent*> (e);
+					// SST::MemHierarchy::MemEventBase *ev2 =  static_cast<SST::MemHierarchy::MemEventBase*> (e);
+					// printf("opal event type: %d\n", ev->getType());
+					// printf("opal weight flag: %d, allc size: %d\n", ev->getWeightFlag(), ev->getSize());
 					ev->setNodeId(nodeId);
 					ev->setCoreId(coreId);
 					opalBase->requestQ.push(ev);

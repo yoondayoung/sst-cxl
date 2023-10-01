@@ -2,6 +2,7 @@ import sst
 
 # Define SST core options
 #sst.setProgramOption("timebase", "1ps")
+#sst.setProgramOption("stopAtCycle", "0 ns")
 
 # Define the simulation components
 comp_cpu = sst.Component("cpu", "miranda.BaseCPU")

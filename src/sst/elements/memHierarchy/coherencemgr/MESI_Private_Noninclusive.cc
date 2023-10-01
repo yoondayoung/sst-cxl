@@ -38,6 +38,7 @@ using namespace SST::MemHierarchy;
  *---------------------------------------------------------------------------------------------------------------------*/
 
 bool MESIPrivNoninclusive::handleGetS(MemEvent* event, bool inMSHR) {
+    // printf("MESI_Private_Noninclusive.cc is used(handleGetS)\n");
     Addr addr = event->getBaseAddr();
     PrivateCacheLine * line = cacheArray_->lookup(addr, true);
     State state = line ? line->getState() : I;

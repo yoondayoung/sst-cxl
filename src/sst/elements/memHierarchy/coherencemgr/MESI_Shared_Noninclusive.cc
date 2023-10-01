@@ -32,6 +32,7 @@ using namespace SST::MemHierarchy;
 
 /* Handle GetS (load/read) requests */
 bool MESISharNoninclusive::handleGetS(MemEvent* event, bool inMSHR) {
+    // printf("MESI_Shared_Noninclusive.cc is used(handleGetS)\n");
     Addr addr = event->getBaseAddr();
     DirectoryLine * tag = dirArray_->lookup(addr, true);
     State state = tag ? tag->getState() : I;

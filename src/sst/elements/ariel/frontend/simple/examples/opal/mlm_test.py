@@ -303,29 +303,31 @@ print("Configuring Ring Network-on-Chip...")
 
 for next_ring_stop in range((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups):
 	ring_rtr = sst.Component("rtr." + str(next_ring_stop), "merlin.hr_router")
-        ring_rtr.addParams(ringstop_params)
-        ring_rtr.addParams({
-               	"id" : next_ring_stop
-               	})
-        router_map["rtr." + str(next_ring_stop)] = ring_rtr
+	ring_rtr.addParams(ringstop_params)
+	ring_rtr.addParams({
+			"id" : next_ring_stop
+			})
+	router_map["rtr." + str(next_ring_stop)] = ring_rtr
 
 for next_ring_stop in range((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups):
 	print(next_ring_stop)
 	if next_ring_stop == 0:
-               	rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
-               	rtr_link_positive.connect( (router_map["rtr.0"], "port0", ring_latency), (router_map["rtr.1"], "port1", ring_latency) )
-               	rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
-                rtr_link_negative.connect( (router_map["rtr.0"], "port1", ring_latency), (router_map["rtr." + str(((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups) - 1)], "port0", ring_latency) )
-       	elif next_ring_stop == ((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups) - 1:
-               	rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
-               	rtr_link_positive.connect( (router_map["rtr." + str(next_ring_stop)], "port0", ring_latency), (router_map["rtr.0"], "port1", ring_latency) )
-               	rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
-               	rtr_link_negative.connect( (router_map["rtr." + str(next_ring_stop)], "port1", ring_latency), (router_map["rtr." + str(next_ring_stop-1)], "port0", ring_latency) )
-       	else:
-               	rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
-               	rtr_link_positive.connect( (router_map["rtr." + str(next_ring_stop)], "port0", ring_latency), (router_map["rtr." + str(next_ring_stop+1)], "port1", ring_latency) )
-               	rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
-                rtr_link_negative.connect( (router_map["rtr." + str(next_ring_stop)], "port1", ring_latency), (router_map["rtr." + str(next_ring_stop-1)], "port0", ring_latency) )
+				rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
+				rtr_link_positive.connect(
+					(router_map["rtr.0"], "port0", ring_latency), (router_map["rtr.1"], "port1", ring_latency))
+				rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
+				rtr_link_negative.connect((router_map["rtr.0"], "port1", ring_latency), (router_map["rtr." + str(
+					((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups) - 1)], "port0", ring_latency))
+	elif next_ring_stop == ((cores_per_group + memory_controllers_per_group + l3cache_blocks_per_group) * groups) - 1:
+			rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
+			rtr_link_positive.connect( (router_map["rtr." + str(next_ring_stop)], "port0", ring_latency), (router_map["rtr.0"], "port1", ring_latency) )
+			rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
+			rtr_link_negative.connect( (router_map["rtr." + str(next_ring_stop)], "port1", ring_latency), (router_map["rtr." + str(next_ring_stop-1)], "port0", ring_latency) )
+	else:
+			rtr_link_positive = sst.Link("rtr_pos_" + str(next_ring_stop))
+			rtr_link_positive.connect( (router_map["rtr." + str(next_ring_stop)], "port0", ring_latency), (router_map["rtr." + str(next_ring_stop+1)], "port1", ring_latency) )
+			rtr_link_negative = sst.Link("rtr_neg_" + str(next_ring_stop))
+			rtr_link_negative.connect( (router_map["rtr." + str(next_ring_stop)], "port1", ring_latency), (router_map["rtr." + str(next_ring_stop-1)], "port0", ring_latency) )
 
 for next_group in range(groups):
 	print("Configuring core and memory controller group " + str(next_group) + "...")
@@ -377,7 +379,7 @@ for next_group in range(groups):
 
 		#'''
 		arielMMULink = sst.Link("cpu_mmu_link_" + str(next_core_id))
-                MMUCacheLink = sst.Link("mmu_cache_link_" + str(next_core_id))
+		MMUCacheLink = sst.Link("mmu_cache_link_" + str(next_core_id))
 		PTWMemLink = sst.Link("ptw_mem_link_" + str(next_core_id))
 		PTWOpalLink = sst.Link("ptw_opal_" + str(next_core_id))
 		ArielOpalLink = sst.Link("ariel_opal_" + str(next_core_id))
@@ -385,9 +387,9 @@ for next_group in range(groups):
 
 
 		if next_core_id < cores_per_group*groups//2:
-                	arielMMULink.connect((ariel, "cache_link_%d"%next_core_id, ring_latency), (mmu, "cpu_to_mmu%d"%next_core_id, ring_latency))
-                	ArielOpalLink.connect((ariel, "opal_link_%d"%next_core_id, ring_latency), (opal, "requestLink%d"%(next_core_id + cores_per_group*groups//2), ring_latency))
-                	MMUCacheLink.connect((mmu, "mmu_to_cache%d"%next_core_id, ring_latency), (l1, "high_network_0", ring_latency))
+			arielMMULink.connect((ariel, "cache_link_%d"%next_core_id, ring_latency), (mmu, "cpu_to_mmu%d"%next_core_id, ring_latency))
+			ArielOpalLink.connect((ariel, "opal_link_%d"%next_core_id, ring_latency), (opal, "requestLink%d"%(next_core_id + cores_per_group*groups//2), ring_latency))
+			MMUCacheLink.connect((mmu, "mmu_to_cache%d"%next_core_id, ring_latency), (l1, "high_network_0", ring_latency))
 			PTWOpalLink.connect( (mmu, "ptw_to_opal%d"%next_core_id, "50ps"), (opal, "requestLink%d"%next_core_id, "50ps") )
 			arielMMULink.setNoCut()
 			PTWOpalLink.setNoCut()
@@ -399,11 +401,11 @@ for next_group in range(groups):
 
 
 		l2_core_link = sst.Link("l2cache_" + str(next_core_id) + "_link")
-       		l2_core_link.connect((l1, "low_network_0", ring_latency), (l2, "high_network_0", ring_latency))				
+		l2_core_link.connect((l1, "low_network_0", ring_latency), (l2, "high_network_0", ring_latency))				
 		l2_core_link.setNoCut()
 
 		l2_ring_link = sst.Link("l2_ring_link_" + str(next_core_id))
-       		l2_ring_link.connect((l2, "cache", ring_latency), (router_map["rtr." + str(next_network_id)], "port2", ring_latency))
+		l2_ring_link.connect((l2, "cache", ring_latency), (router_map["rtr." + str(next_network_id)], "port2", ring_latency))
 
 		next_network_id = next_network_id + 1
 		next_core_id = next_core_id + 1

@@ -44,6 +44,7 @@ class PageFaultHandler : public SubComponent {
         	uint64_t pAddress;
         	uint64_t vAddress;
         	uint64_t size;
+            bool weightAllocFlag;
         }PageFaultHandlerPacket;
 
         PageFaultHandler(ComponentId_t id, Params& params) : SubComponent(id) {
@@ -54,7 +55,7 @@ class PageFaultHandler : public SubComponent {
         ~PageFaultHandler() {};
 
         /** Request to allocate a page */
-        virtual void allocatePage(const uint32_t thread, const uint32_t level, const uint64_t virtualAddress, const uint64_t size) {
+        virtual void allocatePage(const uint32_t thread, const uint32_t level, const uint64_t virtualAddress, const uint64_t size, bool weightFlag) {
             output->verbose(CALL_INFO, 4, 0, "The instantiated PageFaultHandler does not support explicit page fault handling.\n");
         }
 

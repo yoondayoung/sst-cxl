@@ -32,21 +32,36 @@ ArielTextTraceGenerator::~ArielTextTraceGenerator() {
 
 void ArielTextTraceGenerator::publishEntry(const uint64_t picoS,
     const uint64_t physAddr, const uint32_t reqLength,
-    const ArielTraceEntryOperation op) {
-
-    fprintf(textFile, "%" PRIu64 " %s %" PRIu64 " %" PRIu32 "\n",
+    const ArielTraceEntryOperation op, const uint64_t instPtr) {
+    
+    if (op==WEIGHT_WRITE){
+        fprintf(textFile, "%" PRIu64 " %s %" PRIu64 " %" PRIu32 " %" PRIu64 "\n",
+            picoS,
+            "WW",
+            physAddr,
+            reqLength, instPtr);
+    }
+    else if (op==WEIGHT_READ){
+        fprintf(textFile, "%" PRIu64 " %s %" PRIu64 " %" PRIu32 " %" PRIu64 "\n",
+            picoS,
+            "WR",
+            physAddr,
+            reqLength, instPtr);
+    }
+    else{
+        fprintf(textFile, "%" PRIu64 " %s %" PRIu64 " %" PRIu32 " %" PRIu64 "\n",
             picoS,
             (op == READ) ? "R" : "W",
             physAddr,
-            reqLength);
+            reqLength, instPtr);
+    }
 }
 
 void ArielTextTraceGenerator::setCoreID(const uint32_t core) {
     coreID = core;
 
-    size_t size = sizeof(char) * PATH_MAX;
-    char* tracePath = (char*) malloc(size);
-    snprintf(tracePath, size, "%s-%" PRIu32 ".trace", tracePrefix.c_str(), core);
+    char* tracePath = (char*) malloc(sizeof(char) * PATH_MAX);
+    sprintf(tracePath, "%s-%" PRIu32 ".trace", tracePrefix.c_str(), core);
 
     textFile = fopen(tracePath, "wt");
 

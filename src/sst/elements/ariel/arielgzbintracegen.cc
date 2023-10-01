@@ -36,7 +36,7 @@ ArielCompressedBinaryTraceGenerator::~ArielCompressedBinaryTraceGenerator() {
 void ArielCompressedBinaryTraceGenerator::publishEntry(const uint64_t picoS,
         const uint64_t physAddr,
         const uint32_t reqLength,
-        const ArielTraceEntryOperation op) {
+        const ArielTraceEntryOperation op, const uint64_t instPtr) {
 
     const char op_type = (READ == op) ? 'R' : 'W';
 
@@ -50,9 +50,9 @@ void ArielCompressedBinaryTraceGenerator::publishEntry(const uint64_t picoS,
 
 void ArielCompressedBinaryTraceGenerator::setCoreID(const uint32_t core) {
     coreID = core;
-    size_t size = sizeof(char) * PATH_MAX;
-    char* tracePath = (char*) malloc(size);
-    snprintf(tracePath, size, "%s-%" PRIu32 ".trace.gz", tracePrefix.c_str(), core);
+
+    char* tracePath = (char*) malloc(sizeof(char) * PATH_MAX);
+    sprintf(tracePath, "%s-%" PRIu32 ".trace.gz", tracePrefix.c_str(), core);
 
     traceFile = gzopen(tracePath, "wb");
 

@@ -35,14 +35,8 @@ class ArielMemoryManagerSimple : public ArielMemoryManagerCache {
 
     public:
         /* SST ELI */
-        SST_ELI_REGISTER_SUBCOMPONENT(
-            ArielMemoryManagerSimple,
-            "ariel",
-            "MemoryManagerSimple",
-            SST_ELI_ELEMENT_VERSION(1,0,0),
-            "Simple allocate-on-first touch memory manager",
-            SST::ArielComponent::ArielMemoryManager
-        )
+        SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(ArielMemoryManagerSimple, "ariel", "MemoryManagerSimple", SST_ELI_ELEMENT_VERSION(1,0,0),
+                "Simple allocate-on-first touch memory manager", SST::ArielComponent::ArielMemoryManager)
 
 #define MEMMGR_SIMPLE_ELI_PARAMS ARIEL_ELI_MEMMGR_CACHE_PARAMS,\
             {"pagesize0", "Page size", "4096"},\
@@ -58,7 +52,8 @@ class ArielMemoryManagerSimple : public ArielMemoryManagerCache {
 
         uint64_t translateAddress(uint64_t virtAddr);
         void printStats();
-        void get_page_info(std::unordered_map<uint64_t, uint64_t>*, std::deque<uint64_t>*, uint64_t&); 
+        void get_page_info(std::unordered_map<uint64_t, uint64_t>*, std::deque<uint64_t>*, uint64_t&);
+        // bool allocateMalloc(const uint64_t size, const uint32_t level, const uint64_t virtualAddress, const uint64_t instructionPointer, const uint32_t thread) final;
 
     private:
         void allocate(const uint64_t size, const uint32_t level, const uint64_t virtualAddress);

@@ -77,7 +77,7 @@ ProsperoTraceEntry* ProsperoCompressedBinaryTraceReader::readNextEntry() {
 
 		return new ProsperoTraceEntry(reqCycles, reqAddress,
 			reqLength,
-			(reqType == 'R' || reqType == 'r') ? READ : WRITE);
+			(reqType == 'R' || reqType == 'r') ? READ : WRITE, NULL);
 	} else {
 		output->verbose(CALL_INFO, 2, 0, "Did not read a full record from the compressed trace, returning empty request.\n");
 		// Did not get a full read?

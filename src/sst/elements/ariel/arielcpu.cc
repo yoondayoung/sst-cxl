@@ -84,30 +84,29 @@ ArielCPU::ArielCPU(ComponentId_t id, Params& params) :
     uint32_t memLevels = params.find<uint32_t>("memmgr.memorylevels", 1, found);
     if (!found) memLevels = params.find<int>("memorylevels", 1);
     char * level_buffer = (char*) malloc(sizeof(char) * 256);
-    size_t level_buffer_size = sizeof(char) * 256;
     for (uint32_t i = 0; i < memLevels; i++) {
         // Check pagesize/pagecount/pagepopulate for each level
-        snprintf(level_buffer, level_buffer_size, "pagesize%" PRIu32, i);
+        sprintf(level_buffer, "pagesize%" PRIu32, i);
         paramStr = params.find<std::string>(level_buffer, "", found);
         if (found) {
             output->verbose(CALL_INFO, 0, 0, "WARNING - ariel parameter name change: change '%s' to 'memmgr.%s' in your input. The old parameter will continue to work for now but may not be supported in future releases.\n", level_buffer, level_buffer);
-            snprintf(level_buffer, level_buffer_size, "memmgr.pagesize%" PRIu32, i);
+            sprintf(level_buffer, "memmgr.pagesize%" PRIu32, i);
             params.find<std::string>(level_buffer, "", found);
             if (!found) params.insert(level_buffer, paramStr, true);
         }
-        snprintf(level_buffer, level_buffer_size, "pagecount%" PRIu32, i);
+        sprintf(level_buffer, "pagecount%" PRIu32, i);
         paramStr = params.find<std::string>(level_buffer, "", found);
         if (found) {
             output->verbose(CALL_INFO, 0, 0, "WARNING - ariel parameter name change: change '%s' to 'memmgr.%s' in your input. The old parameter will continue to work for now but may not be supported in future releases.\n", level_buffer, level_buffer);
-            snprintf(level_buffer, level_buffer_size, "memmgr.pagecount%" PRIu32, i);
+            sprintf(level_buffer, "memmgr.pagecount%" PRIu32, i);
             params.find<std::string>(level_buffer, "", found);
             if (!found) params.insert(level_buffer, paramStr, true);
         }
-        snprintf(level_buffer, level_buffer_size, "page_populate_%" PRIu32, i);
+        sprintf(level_buffer, "page_populate_%" PRIu32, i);
         paramStr = params.find<std::string>(level_buffer, "", found);
         if (found) {
             output->verbose(CALL_INFO, 0, 0, "WARNING - ariel parameter name change: change '%s' to 'memmgr.%s' in your input. The old parameter will continue to work for now but may not be supported in future releases.\n", level_buffer, level_buffer);
-            snprintf(level_buffer, level_buffer_size, "memmgr.pagepopulate%" PRIu32, i);
+            sprintf(level_buffer, "memmgr.pagepopulate%" PRIu32, i);
             params.find<std::string>(level_buffer, "", found);
             if (!found) params.insert(level_buffer, paramStr, true);
         }
@@ -151,7 +150,7 @@ ArielCPU::ArielCPU(ComponentId_t id, Params& params) :
 
     frontend = loadUserSubComponent<ArielFrontend>("frontend", ComponentInfo::SHARE_NONE, core_count, maxCoreQueueLen, memmgr->getDefaultPool());
     if (!frontend) {
-        // ariel.frontend.pin points to pin3
+        // ariel.frontend.pin points to either pin2 or pin3 based on sst-elements configuration
         frontend = loadAnonymousSubComponent<ArielFrontend>("ariel.frontend.pin", "frontend", 0, ComponentInfo::INSERT_STATS | ComponentInfo::SHARE_STATS,
                 params, core_count, maxCoreQueueLen, memmgr->getDefaultPool());
     }
@@ -208,7 +207,6 @@ ArielCPU::ArielCPU(ComponentId_t id, Params& params) :
     } else {
     // Load from here not the user one; let the subcomponent have our port (cache_link)
         char* link_buffer = (char*) malloc(sizeof(char) * 256);
-        size_t link_buffer_size = sizeof(char) * 256;
         for (int i = 0; i < core_count; i++) {
             Params par;
             par.insert("port", "cache_link_" + std::to_string(i));
@@ -218,7 +216,7 @@ ArielCPU::ArielCPU(ComponentId_t id, Params& params) :
 
 #ifdef HAVE_CUDA
             if(gpu_enabled) {
-               snprintf(link_buffer, link_buffer_size, "gpu_link_%" PRIu32, i);
+               sprintf(link_buffer, "gpu_link_%" PRIu32, i);
                cpu_to_gpu_links.push_back(configureLink(link_buffer, new Event::Handler<ArielCore>(cpu_cores[i], &ArielCore::handleGpuAckEvent)));
                cpu_cores[i]->setGpuLink(cpu_to_gpu_links[i]);
                cpu_cores[i]->setGpu();
@@ -229,7 +227,7 @@ ArielCPU::ArielCPU(ComponentId_t id, Params& params) :
 #endif
 
             //Configuring Ariel to RTL link and RTLAck Event Handle
-               snprintf(link_buffer, link_buffer_size, "rtl_link_%" PRIu32, i);
+               sprintf(link_buffer, "rtl_link_%" PRIu32, i);
                cpu_to_rtl_links.push_back(configureLink(link_buffer, new Event::Handler<ArielCore>(cpu_cores[i], &ArielCore::handleRtlAckEvent)));
                cpu_cores[i]->setRtlLink(cpu_to_rtl_links[i]);
                output->verbose(CALL_INFO, 1, 0, "Completed initialization of the Ariel RTL Link.\n");
@@ -270,6 +268,7 @@ void ArielCPU::finish() {
     }
 
     memmgr->printStats();
+    
     frontend->finish();
 }
 

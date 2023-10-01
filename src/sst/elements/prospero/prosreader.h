@@ -27,7 +27,9 @@ namespace Prospero {
 
 typedef enum {
 	READ,
-	WRITE
+	WRITE,
+	WREAD,
+	WWRITE,
 } ProsperoTraceEntryOperation;
 
 class ProsperoTraceEntry {
@@ -36,22 +38,27 @@ public:
 		const uint64_t eCyc,
 		const uint64_t eAddr,
 		const uint32_t eLen,
-		const ProsperoTraceEntryOperation eOp) :
-		cycles(eCyc), address(eAddr), length(eLen), op(eOp) {
+		const ProsperoTraceEntryOperation eOp,
+		const uint64_t eIP) :
+		cycles(eCyc), address(eAddr), length(eLen), op(eOp), instPtr(eIP)  {
 
 		}
 
 	bool isRead() const { return op == READ;  }
 	bool isWrite() const { return op == WRITE; }
+	bool isRead_W() const { return op == WREAD; }
+	bool isWrite_W() const { return op == WWRITE; }
 	uint64_t getAddress() const { return address; }
 	uint32_t getLength() const { return length; }
 	uint64_t getIssueAtCycle() const { return cycles; }
 	ProsperoTraceEntryOperation getOperationType() const { return op; }
+	uint64_t getIP() const { return instPtr; }
 private:
 	const uint64_t cycles;
 	const uint64_t address;
 	const uint32_t length;
 	const ProsperoTraceEntryOperation op;
+	const uint64_t instPtr;
 };
 
 class ProsperoTraceReader : public SubComponent {

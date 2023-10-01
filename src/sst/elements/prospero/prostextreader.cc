@@ -42,15 +42,34 @@ ProsperoTextTraceReader::~ProsperoTextTraceReader() {
 ProsperoTraceEntry* ProsperoTextTraceReader::readNextEntry() {
 	uint64_t reqAddress = 0;
 	uint64_t reqCycles  = 0;
-	char reqType = 'R';
+	char _reqType[2];
+	std::string reqType;
 	uint32_t reqLength  = 0;
+	uint64_t instPtr  = 0;
+	ProsperoTraceEntryOperation op;
 
-	if(EOF == fscanf(traceInput, "%" PRIu64 " %c %" PRIu64 " %" PRIu32 "",
-		&reqCycles, &reqType, &reqAddress, &reqLength) ) {
+	// 여기서 pc도 읽어야 함
+	if(EOF == fscanf(traceInput, "%" PRIu64 " %s %" PRIu64 " %" PRIu32 " %" PRIu64 "",
+		&reqCycles, _reqType, &reqAddress, &reqLength, &instPtr) ) {
 		return NULL;
 	} else {
+		reqType = _reqType;
+		if( reqType == "R"){
+			op = READ;
+		}
+		else if( reqType == "W"){
+			op = WRITE;
+		}
+		else if( reqType == "WR"){
+			op = WREAD;
+			output->verbose(CALL_INFO, 4, 0, "Try to read weight data\n");
+		}
+		else if( reqType == "WW"){
+			op = WWRITE;
+			output->verbose(CALL_INFO, 4, 0, "Try to write weight data\n");
+		}
+
 		return new ProsperoTraceEntry(reqCycles, reqAddress,
-			reqLength,
-			(reqType == 'R' || reqType == 'r') ? READ : WRITE);
+			reqLength, op, instPtr);
 	}
 }
